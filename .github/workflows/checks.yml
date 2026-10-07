@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 contributors
+# SPDX-License-Identifier: Apache-2.0
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only token: nothing here writes to the repo.
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1, pinned by SHA.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      # The checkers (spec_check.py, anchor_check.py) and the self-test's fixtures live in
+      # driver-lab. Pinned to a commit on its main branch so an upstream edit cannot change what
+      # runs here unreviewed; bump the ref to take a new one.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: curtisgalloway/driver-lab
+          ref: 5d7eac2dabbb07265a61b56a3ad710eb9d03c454
+          path: .driver-lab
+          persist-credentials: false
+
+      # Overlays here may target specs in hardware-specs-docs, so spec_check.py reads both roots.
+      # Its main branch rather than a pin: it holds spec data only, no code that runs here, and
+      # an overlay must resolve against the docs specs as they are published.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: curtisgalloway/hardware-specs-docs
+          ref: main
+          path: .hardware-specs-docs
+          persist-credentials: false
+
+      - name: Root marker and board specs (spec_check.py --require-license)
+        run: scripts/checks.sh specs .driver-lab .hardware-specs-docs/specs
+
+      - name: Peripheral specs (anchor_check.py --root specs --require-license)
+        run: scripts/checks.sh anchors .driver-lab .hardware-specs-docs/specs
+
+      # Proves the license gate with this repository's own root marker: fixture specs that do
+      # not fit must fail with the gate's message, and those that fit must pass.
+      - name: License-gate self-test
+        run: scripts/checks.sh self-test .driver-lab .hardware-specs-docs/specs
