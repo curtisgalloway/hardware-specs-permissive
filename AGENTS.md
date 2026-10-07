@@ -16,9 +16,9 @@ Instructions for coding agents working in this repository. The user guide is the
 - **Placement first:** apply the README's placement rule before adding a spec. A spec citing a
   source this repository's `accepts:` does not list belongs in another spec repository, or in
   none.
-- **What a spec here may cite:** `[src:]` anchors into BSD, MIT or Apache trees (and
+- **What a spec here may cite:** `[src:]` anchors into BSD, ISC, 0BSD, MIT or Apache trees (and
   `GPL-2.0 OR MIT` files, through a pin whose license says so), plus documents. A spec that
-  reproduces material from a BSD- or MIT-licensed source keeps that source's copyright notice and
+  reproduces material from a BSD-, ISC- or MIT-licensed source keeps that source's copyright notice and
   license in a "Source notices" section at its end, and gets a line in `NOTICE`.
 - **Overlays on docs specs:** an overlay here may target a spec in `hardware-specs-docs`. CI
   checks out that repository's `main` as a second root; `scripts/checks.sh all <driver-lab>

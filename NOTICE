@@ -3,13 +3,13 @@ Copyright 2026 contributors
 
 This repository is licensed under the Apache License, Version 2.0 (LICENSE).
 
-The specs here describe hardware. They cite source trees under BSD, MIT and
+The specs here describe hardware. They cite source trees under BSD, ISC, 0BSD, MIT and
 Apache licenses (and files dual-licensed GPL-2.0 OR MIT, used under their
 permissive option) as well as public documents. Each spec names every source
 tree it cites on a "Source pin:" line, with the commit and the SPDX license of
 the cited files, and anchors each fact to a line of that tree.
 
-Facts drawn from BSD- and MIT-licensed sources carry their source's
+Facts drawn from BSD-, ISC- and MIT-licensed sources carry their source's
 attribution. Where a spec reproduces material from such a source (a register
 or symbol name, a constant, a short excerpt), the spec keeps that source's
 copyright notice and license terms with it, in a "Source notices" section at

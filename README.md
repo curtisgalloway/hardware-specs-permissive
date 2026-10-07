@@ -5,9 +5,9 @@ SPDX-License-Identifier: Apache-2.0
 
 # hardware-specs-permissive
 
-Hardware specs that cite source trees under BSD, MIT or Apache licenses (and files
+Hardware specs that cite source trees under BSD, ISC, 0BSD, MIT or Apache licenses (and files
 dual-licensed `GPL-2.0 OR MIT`, used under their permissive option), plus public documents,
-licensed Apache-2.0 with a [NOTICE](NOTICE) file for the BSD and MIT sources. Typical sources:
+licensed Apache-2.0 with a [NOTICE](NOTICE) file for the BSD, ISC and MIT sources. Typical sources:
 Trusted Firmware-A (TF-A), the Raspberry Pi tools, Zephyr, FreeBSD and dual-licensed device
 trees. A spec here may be an *overlay* that adds facts to a spec in
 [hardware-specs-docs](https://github.com/curtisgalloway/hardware-specs-docs); CI checks the two
@@ -38,20 +38,20 @@ restrictive licenses.
 |---|---|---|---|
 | `hardware-specs-gpl` | GPL-2.0-only | `[src:]` into any GPL-2.0-only or GPL-2.0-or-later tree, plus `[doc:]`, plus anything the permissive repo accepts | Linux-derived specs: references for Linux work, or for anyone who doesn't care about license. Easiest to verify. |
 | `hardware-specs-docs` | CC-BY-4.0 (specs); per-file Apache-2.0 SPDX headers on CI files | `[doc:]` only | Specs built only from public datasheets, TRMs and standards |
-| `hardware-specs-permissive` | Apache-2.0, plus a NOTICE file for the BSD/MIT sources | `[src:]` into BSD, MIT or Apache trees (and `GPL-2.0 OR MIT` files), plus `[doc:]` | TF-A, rpi-tools, Zephyr, FreeBSD, dual-licensed device trees. First material: the bcm2711 overlay (facts 2, 3, 6 below) |
+| `hardware-specs-permissive` | Apache-2.0, plus a NOTICE file for the BSD/ISC/MIT sources | `[src:]` into BSD, ISC, 0BSD, MIT or Apache trees (and `GPL-2.0 OR MIT` files), plus `[doc:]` | TF-A, rpi-tools, Zephyr, FreeBSD, dual-licensed device trees. First material: the bcm2711 overlay (facts 2, 3, 6 below) |
 
 The table is the license-split design's ([LICENSE-SPLIT.md](https://github.com/curtisgalloway/driver-lab/blob/main/docs/LICENSE-SPLIT.md#the-repos)),
 verbatim; its "facts 2, 3, 6 below" are three boot-stub facts from BSD-licensed Raspberry Pi
 tools, listed in that design's audit of the deleted specs.
 
-This repository accepts sources licensed `Apache-2.0`, `MIT`, `BSD-2-Clause`, `BSD-3-Clause` (`accepts:` in [specs/board-specs.yaml](specs/board-specs.yaml)).
+This repository accepts sources licensed `Apache-2.0`, `MIT`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `0BSD` (`accepts:` in [specs/board-specs.yaml](specs/board-specs.yaml)).
 
 ## What is here
 
 - `specs/`: the specs and the root marker. Peripheral specs are named `<device>-spec.md`, board
   specs `<id>.spec.md`.
 - `LICENSE`: the license.
-- `NOTICE`: attribution for BSD- and MIT-licensed sources.
+- `NOTICE`: attribution for BSD-, ISC- and MIT-licensed sources.
 - `.github/workflows/checks.yml` and `scripts/checks.sh`: the checks below.
 
 ## How a spec is written and checked
@@ -89,5 +89,5 @@ Check out the driver-lab commit that `.github/workflows/checks.yml` pins for an 
 ## License
 
 Everything here is licensed Apache-2.0 ([LICENSE](LICENSE)); each file states it in an
-`SPDX-License-Identifier` line. [NOTICE](NOTICE) explains how facts drawn from BSD- and
+`SPDX-License-Identifier` line. [NOTICE](NOTICE) explains how facts drawn from BSD-, ISC- and
 MIT-licensed sources carry their source's attribution.
