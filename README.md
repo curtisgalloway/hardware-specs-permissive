@@ -57,7 +57,7 @@ This repository accepts sources licensed `Apache-2.0`, `MIT`, `BSD-2-Clause`, `B
 ## How a spec is written and checked
 
 The method lives in [driver-lab](https://github.com/curtisgalloway/driver-lab): the
-[`anchored-peripheral-spec`](https://github.com/curtisgalloway/driver-lab/tree/main/skills/anchored-peripheral-spec) skill writes and
+[`peripheral-spec`](https://github.com/curtisgalloway/driver-lab/tree/main/skills/peripheral-spec) skill writes and
 verifies peripheral specs and defines the anchor grammar;
 [`SPEC-FORMAT.md`](https://github.com/curtisgalloway/driver-lab/blob/main/skills/board-expert/SPEC-FORMAT.md) defines board specs and
 the root marker. CI checks out driver-lab at one pinned commit and runs, through

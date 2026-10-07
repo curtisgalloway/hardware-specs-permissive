@@ -10,7 +10,7 @@ Instructions for coding agents working in this repository. The user guide is the
 
 - **What this is:** published hardware specs, licensed Apache-2.0. The method (how a spec is
   written, the anchor grammar, the checkers, verification) lives in
-  [driver-lab](https://github.com/curtisgalloway/driver-lab): the `anchored-peripheral-spec` skill for peripheral specs, and
+  [driver-lab](https://github.com/curtisgalloway/driver-lab): the `peripheral-spec` skill for peripheral specs, and
   `board-expert`'s `SPEC-FORMAT.md` for board specs and the root marker. Read those before writing
   or changing a spec; do not restate them here.
 - **Placement first:** apply the README's placement rule before adding a spec. A spec citing a

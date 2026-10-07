@@ -24,7 +24,7 @@
 set -euo pipefail
 
 # This repository's self-test fixtures, from driver-lab's
-# skills/anchored-peripheral-spec/tests/fixtures/license-gate/ (its README lists each
+# skills/peripheral-spec/tests/fixtures/license-gate/ (its README lists each
 # repository's pairs). Peripheral specs for the anchor gate:
 FIT=bsd-spec.md
 MISFIT=gpl-only-spec.md
@@ -52,8 +52,8 @@ if [ "$REQUIRE_FURTHER" = 1 ] && [ "${#further[@]}" -eq 0 ]; then
 fi
 
 SPEC_CHECK=$dl/skills/board-expert/scripts/spec_check.py
-ANCHOR_CHECK=$dl/skills/anchored-peripheral-spec/scripts/anchor_check.py
-FIXTURES=$dl/skills/anchored-peripheral-spec/tests/fixtures/license-gate
+ANCHOR_CHECK=$dl/skills/peripheral-spec/scripts/anchor_check.py
+FIXTURES=$dl/skills/peripheral-spec/tests/fixtures/license-gate
 
 needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
   "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT")
