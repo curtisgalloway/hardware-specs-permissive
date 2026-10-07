@@ -153,6 +153,14 @@ self_test() {
   expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " "misfit $MISFIT" \
     python3 "$ANCHOR_CHECK" "$tmp/anchors/$MISFIT" --root "$tmp/anchors" --require-license
 
+  echo "== self-test: anchor gate, ISC and 0BSD sources (fit), made from bsd-spec.md with the pin's license replaced"
+  for lic in ISC 0BSD; do
+    make_root "$tmp/$lic" specs/board-specs.yaml
+    sed "s/BSD-3-Clause/$lic/g" "$FIXTURES/specs/bsd-spec.md" > "$tmp/$lic/$lic-spec.md"
+    expect 0 "" "fit $lic-spec.md" \
+      python3 "$ANCHOR_CHECK" "$tmp/$lic/$lic-spec.md" --root "$tmp/$lic" --require-license
+  done
+
   echo "== self-test: board-spec gate, widgetchip.spec.md with ${BOARD_FIT:-no overlay} (fit) and $BOARD_MISFIT (misfit)"
   make_root "$tmp/board-fit" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" "$board_fit"
   expect 0 "" "fit widgetchip.spec.md ${BOARD_FIT}" \

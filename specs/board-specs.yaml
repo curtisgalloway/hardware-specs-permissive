@@ -3,8 +3,9 @@
 #
 # Root marker for hardware-specs-permissive (driver-lab, board-expert/SPEC-FORMAT.md). license: is this
 # repository's license; accepts: lists the SPDX licenses a cited source may carry.
-# BSD, MIT and Apache trees (and dual-licensed files with one of those).
+# BSD, ISC, 0BSD, MIT and Apache trees (and dual-licensed files with one of those);
+# ISC and 0BSD added by the user's decision of 2026-10-07.
 layer: public
 name: hardware-specs-permissive
 license: Apache-2.0
-accepts: [Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause]
+accepts: [Apache-2.0, MIT, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD]
