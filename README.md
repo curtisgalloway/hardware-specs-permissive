@@ -68,6 +68,9 @@ the root marker. CI checks out driver-lab at one pinned commit and runs, through
    The other spec repositories' `specs/` are read as context roots (`--context-root`) so that
    overlays resolve: their own errors are warnings here and fail only in their own repository's
    checks.
+   CI also passes `--require-verified`: a board spec with no verification record, or one whose
+   record is stale (the spec changed since it was verified), fails, so nothing merges unverified.
+   Re-run `spec-verifier` after editing a spec. The self-test's synthetic fixtures are exempt.
 2. `anchor_check.py <spec> --root specs --require-license` on every peripheral spec, and on
    every board spec with a `[src]` fact (a fact read from source, cited with `[src:<repo>:
    path:L]` anchors whose pins are the spec's `resources.repos` entries): anchors, pins and the
@@ -76,11 +79,16 @@ the root marker. CI checks out driver-lab at one pinned commit and runs, through
    of verification (the skill's verify step). For a board spec, CI also fetches each pinned
    repository its `[src:]` anchors cite and resolves them (path, line range, symbol): a shallow,
    blob-less clone of the one pinned commit, then only the cited files
-   (`fetch_src_pins.py`, run when `RESOLVE_SRC=1`, which the workflow sets). A repository whose
-   initial fetch exceeds 50 MB (`SRC_FETCH_LIMIT_MB`), or that cannot be fetched, is checked for
-   form and license only, with a note in the log. Measured 2026-10-07: that fetch is about
-   0.5 MB for the Raspberry Pi tools and 3.3 MB for Linux.
-3. A self-test that proves the gate works with this repository's own root marker: driver-lab's
+   (`fetch_src_pins.py`, run when `RESOLVE_SRC=1`, which the workflow sets). Only `https://` URLs are
+   fetched. A repository whose fetched objects exceed 50 MB (`SRC_FETCH_LIMIT_MB`), or whose
+   transfer outlasts the fetcher's timeout (300 s), is checked for form and license only, with a
+   note in the log saying which; the limit is measured after the fetch, so it bounds what is
+   kept, and the timeout bounds the transfer. Any other fetch failure (a commit or repository
+   that does not exist, an unreachable host) fails the build. Measured 2026-10-07: the fetch is
+   about 0.5 MB for the Raspberry Pi tools and 3.3 MB for Linux, so both resolve.
+3. A self-test that proves the gate works with this repository's own root marker, and, with
+   `RESOLVE_SRC=1`, that anchors really resolve (a real pinned repository is fetched; a good
+   anchor must pass and a bad one fail): driver-lab's
    fixture specs that fit and do not fit this repository are copied into a temporary root, and
    the run fails unless the misfits fail with the gate's message and the fits pass. The fixtures
    are never published here as specs.

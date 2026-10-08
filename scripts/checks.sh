@@ -8,7 +8,8 @@
 #   scripts/checks.sh <step> <driver-lab checkout> [<further root>...]
 #
 # Steps:
-#   specs      spec_check.py on specs/ (and any further roots) with --require-license
+#   specs      spec_check.py on specs/ (further roots as --context-root) with --require-license
+#              and --require-verified: nothing lands unverified or with a stale record
 #   anchors    anchor_check.py --root specs --require-license on every specs/**/*-spec.md
 #              and on every board spec (specs/**/*.spec.md) carrying a [src:] anchor, and a
 #              failure for any other Markdown file under specs/ that no check reads
@@ -22,7 +23,9 @@
 # RESOLVE_SRC=1 (CI sets it) makes the anchors step fetch each pinned repository a board spec's
 # [src:] anchors cite, as a shallow, blob-less clone of the one commit, and resolve the anchors
 # against it; an entry whose initial fetch exceeds SRC_FETCH_LIMIT_MB (default 50) or fails is
-# checked for form and license only. Unset, nothing is fetched.
+# checked for form and license only; any other fetch failure (a commit or repository that does
+# not exist, a URL that is not https) fails the step. The limit is measured after the fetch, so
+# it bounds what is kept; the fetcher's timeout bounds the transfer. Unset, nothing is fetched.
 # hardware-specs-docs passes none; hardware-specs-permissive requires one, hardware-specs-docs'
 # specs/; hardware-specs-gpl requires two, hardware-specs-docs' specs/ then
 # hardware-specs-permissive's specs/ (a GPL overlay may add to a docs spec that a permissive
@@ -69,7 +72,9 @@ ANCHOR_CHECK=$dl/skills/peripheral-spec/scripts/anchor_check.py
 FETCH_PINS=$dl/skills/board-expert/scripts/fetch_src_pins.py
 FIXTURES=$dl/skills/peripheral-spec/tests/fixtures/license-gate
 
-needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FETCH_PINS" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
+needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FETCH_PINS"
+  "$FIXTURES/board/widgetchip-resolve-good-overlay.spec.md"
+  "$FIXTURES/board/widgetchip-resolve-bad-overlay.spec.md" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
   "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT"
   "$FIXTURES/board/widgetchip-src-overlay.spec.md")
 if [ -n "$BOARD_FIT" ]; then
@@ -86,10 +91,15 @@ if [ ! -f specs/board-specs.yaml ]; then
   exit 3
 fi
 # ${further[@]+...} keeps an empty array from tripping set -u on bash before 4.4.
+own=$(cd specs && pwd -P)
 for r in ${further[@]+"${further[@]}"}; do
   if [ ! -f "$r/board-specs.yaml" ]; then
     echo "missing precondition: $r/board-specs.yaml (a further root must be a spec root)" >&2
     exit 3
+  fi
+  if [ "$(cd "$r" && pwd -P)" = "$own" ]; then
+    echo "usage: $r is this repository's own specs/; a further root is another repository's" >&2
+    exit 2
   fi
 done
 
@@ -98,8 +108,8 @@ check_specs() {
   for r in ${further[@]+"${further[@]}"}; do
     ctx+=(--context-root "$r")
   done
-  echo "== spec_check.py specs ${ctx[*]+${ctx[*]} }--require-license"
-  python3 "$SPEC_CHECK" specs ${ctx[@]+"${ctx[@]}"} --require-license
+  echo "== spec_check.py specs ${ctx[*]+${ctx[*]} }--require-license --require-verified"
+  python3 "$SPEC_CHECK" specs ${ctx[@]+"${ctx[@]}"} --require-license --require-verified
 }
 
 check_anchors() {
@@ -113,6 +123,7 @@ check_anchors() {
   # "Facts read from source"), so anchor_check.py gates them as it gates peripheral specs.
   local boards=0 cache="" repos line
   if [ "${RESOLVE_SRC:-0}" = 1 ]; then
+    # One cache for the whole run: a repository at one commit is fetched once.
     cache=$(mktemp -d)
   fi
   while IFS= read -r -d '' spec; do
@@ -120,9 +131,16 @@ check_anchors() {
       boards=$((boards + 1))
       repos=()
       if [ -n "$cache" ]; then
+        # Read the fetcher's output from a file, not a process substitution, so its exit
+        # status is seen: a failed or crashed fetch fails the step.
+        if ! python3 "$FETCH_PINS" "$spec" "$cache" --limit-mb "${SRC_FETCH_LIMIT_MB:-50}" \
+            > "$cache/repos.txt"; then
+          echo "error: $spec: fetch_src_pins.py failed (see above)"
+          failed=$((failed + 1))
+        fi
         while IFS= read -r line; do
           repos+=(--repo "$line")
-        done < <(python3 "$FETCH_PINS" "$spec" "$cache" --limit-mb "${SRC_FETCH_LIMIT_MB:-50}")
+        done < "$cache/repos.txt"
       fi
       echo "== anchor_check.py $spec --root specs --require-license ${repos[*]+${repos[*]}}"
       python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license ${repos[@]+"${repos[@]}"} \
@@ -180,6 +198,9 @@ make_root() {
   done
 }
 
+# The self-test checks synthetic fixtures for the license gate and resolution; its spec_check.py
+# runs leave out --require-verified on purpose (exempt: the fixtures carry no verification
+# records, and verification is not what these runs test).
 self_test() {
   local board_fit=""
   tmp=$(mktemp -d)
@@ -227,6 +248,30 @@ self_test() {
     expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " \
       "misfit widgetchip-src-overlay.spec.md (anchor_check)" \
       python3 "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+  fi
+
+  if [ "${RESOLVE_SRC:-0}" = 1 ]; then
+    # Proves resolution ran: a real pinned repository is fetched, a good anchor must pass and a
+    # bad one fail. Under a temporary marker that accepts BSD-3-Clause, so the fixture's license
+    # does not decide the result in any repository.
+    echo "== self-test: [src:] anchors resolve against the fetched pin (RESOLVE_SRC=1)"
+    mkdir -p "$tmp/resolve"
+    printf 'layer: public\nlicense: Apache-2.0\naccepts: [BSD-3-Clause]\n' > "$tmp/resolve/marker.yaml"
+    make_root "$tmp/resolve/root" "$tmp/resolve/marker.yaml" \
+      "$FIXTURES/board/widgetchip-resolve-good-overlay.spec.md" \
+      "$FIXTURES/board/widgetchip-resolve-bad-overlay.spec.md"
+    local kind out
+    for kind in good bad; do
+      out=$tmp/resolve/root/widgetchip-resolve-$kind-overlay.spec.md
+      python3 "$FETCH_PINS" "$out" "$tmp/resolve/cache" > "$tmp/resolve/$kind.txt"
+      if [ "$kind" = good ]; then
+        expect 0 "" "resolve-good (anchor exists at the pin)" \
+          python3 "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
+      else
+        expect 1 "^ERROR L[0-9]+: pin rpi-tools: .* does not exist at " "resolve-bad (no such file at the pin)" \
+          python3 "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
+      fi
+    done
   fi
 
   if [ "${#further[@]}" -gt 0 ]; then
