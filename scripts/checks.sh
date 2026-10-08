@@ -15,7 +15,14 @@
 #   self-test  prove the license gate with this repository's root marker (below)
 #   all        the three in order
 #
-# A further root is another spec root read beside specs/ so that overlays resolve.
+# A further root is another spec root read beside specs/ so that overlays resolve. It is context
+# only: spec_check.py reads it with --context-root, so its own findings are warnings here and
+# fail only in its own repository's checks.
+#
+# RESOLVE_SRC=1 (CI sets it) makes the anchors step fetch each pinned repository a board spec's
+# [src:] anchors cite, as a shallow, blob-less clone of the one commit, and resolve the anchors
+# against it; an entry whose initial fetch exceeds SRC_FETCH_LIMIT_MB (default 50) or fails is
+# checked for form and license only. Unset, nothing is fetched.
 # hardware-specs-docs passes none; hardware-specs-permissive requires one, hardware-specs-docs'
 # specs/; hardware-specs-gpl requires two, hardware-specs-docs' specs/ then
 # hardware-specs-permissive's specs/ (a GPL overlay may add to a docs spec that a permissive
@@ -59,9 +66,10 @@ fi
 
 SPEC_CHECK=$dl/skills/board-expert/scripts/spec_check.py
 ANCHOR_CHECK=$dl/skills/peripheral-spec/scripts/anchor_check.py
+FETCH_PINS=$dl/skills/board-expert/scripts/fetch_src_pins.py
 FIXTURES=$dl/skills/peripheral-spec/tests/fixtures/license-gate
 
-needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
+needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FETCH_PINS" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
   "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT"
   "$FIXTURES/board/widgetchip-src-overlay.spec.md")
 if [ -n "$BOARD_FIT" ]; then
@@ -86,8 +94,12 @@ for r in ${further[@]+"${further[@]}"}; do
 done
 
 check_specs() {
-  echo "== spec_check.py specs ${further[*]+${further[*]} }--require-license"
-  python3 "$SPEC_CHECK" specs ${further[@]+"${further[@]}"} --require-license
+  local ctx=() r
+  for r in ${further[@]+"${further[@]}"}; do
+    ctx+=(--context-root "$r")
+  done
+  echo "== spec_check.py specs ${ctx[*]+${ctx[*]} }--require-license"
+  python3 "$SPEC_CHECK" specs ${ctx[@]+"${ctx[@]}"} --require-license
 }
 
 check_anchors() {
@@ -99,14 +111,27 @@ check_anchors() {
   done < <(find specs -name '*-spec.md' -print0 | sort -z)
   # Board specs with [src] facts: their resources.repos entries are the pins (SPEC-FORMAT.md,
   # "Facts read from source"), so anchor_check.py gates them as it gates peripheral specs.
-  local boards=0
+  local boards=0 cache="" repos line
+  if [ "${RESOLVE_SRC:-0}" = 1 ]; then
+    cache=$(mktemp -d)
+  fi
   while IFS= read -r -d '' spec; do
     if grep -q '\[src:' "$spec"; then
       boards=$((boards + 1))
-      echo "== anchor_check.py $spec --root specs --require-license"
-      python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
+      repos=()
+      if [ -n "$cache" ]; then
+        while IFS= read -r line; do
+          repos+=(--repo "$line")
+        done < <(python3 "$FETCH_PINS" "$spec" "$cache" --limit-mb "${SRC_FETCH_LIMIT_MB:-50}")
+      fi
+      echo "== anchor_check.py $spec --root specs --require-license ${repos[*]+${repos[*]}}"
+      python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license ${repos[@]+"${repos[@]}"} \
+        || failed=$((failed + 1))
     fi
   done < <(find specs -name '*.spec.md' -print0 | sort -z)
+  if [ -n "$cache" ]; then
+    rm -rf "$cache"
+  fi
   echo "anchors: $n peripheral spec(s) and $boards board spec(s) with [src:] anchors checked, $failed failed"
   # Board specs (*.spec.md) are spec_check.py's, verification records (*.verify.md) its too.
   # Any other Markdown under specs/ would be checked by nothing: a misnamed peripheral spec.

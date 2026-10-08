@@ -25,7 +25,8 @@ Instructions for coding agents working in this repository. The user guide is the
   <hardware-specs-docs checkout>/specs` does the same locally.
 - **Names:** peripheral specs `specs/<device>-spec.md`; board specs `specs/<id>.spec.md`
   (`spec_check.py` reads every `*.spec.md` as a board spec).
-- **Checks:** `scripts/checks.sh all <driver-lab checkout>` runs what CI runs. CI pins driver-lab
+- **Checks:** `scripts/checks.sh all <driver-lab checkout> <hardware-specs-docs checkout>/specs`
+  runs what CI runs (it exits 2 without the further root). CI pins driver-lab
   to the commit in `.github/workflows/checks.yml`; check against that commit.
 - **Do not** widen `accepts:` in `specs/board-specs.yaml` to make a spec pass: that changes the
   repository's license policy, which is the user's decision. Do not add the self-test's fixture

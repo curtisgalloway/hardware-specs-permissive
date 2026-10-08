@@ -44,6 +44,9 @@ jobs:
 
       - name: Peripheral specs and board specs with [src] facts (anchor_check.py --root specs --require-license)
         run: scripts/checks.sh anchors .driver-lab .hardware-specs-docs/specs
+        # Fetch the pinned repositories [src:] anchors cite (below a size limit) and resolve them.
+        env:
+          RESOLVE_SRC: 1
 
       # Proves the license gate with this repository's own root marker: fixture specs that do
       # not fit must fail with the gate's message, and those that fit must pass.

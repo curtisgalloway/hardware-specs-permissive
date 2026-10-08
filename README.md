@@ -65,12 +65,21 @@ the root marker. CI checks out driver-lab at one pinned commit and runs, through
 
 1. `spec_check.py specs .hardware-specs-docs/specs --require-license`: the root marker's license fields and every
    board spec, including the board-spec license gate on `resources.repos` licenses.
+   The other spec repositories' `specs/` are read as context roots (`--context-root`) so that
+   overlays resolve: their own errors are warnings here and fail only in their own repository's
+   checks.
 2. `anchor_check.py <spec> --root specs --require-license` on every peripheral spec, and on
    every board spec with a `[src]` fact (a fact read from source, cited with `[src:<repo>:
    path:L]` anchors whose pins are the spec's `resources.repos` entries): anchors, pins and the
-   license gate. CI has no checkout of the cited source trees, so it checks the
-   anchors' form and licenses; resolving each `[src:]` line against its tree is part of
-   verification (the skill's verify step).
+   license gate. For a peripheral spec CI has no checkout of the cited source trees, so it
+   checks the anchors' form and licenses; resolving each `[src:]` line against its tree is part
+   of verification (the skill's verify step). For a board spec, CI also fetches each pinned
+   repository its `[src:]` anchors cite and resolves them (path, line range, symbol): a shallow,
+   blob-less clone of the one pinned commit, then only the cited files
+   (`fetch_src_pins.py`, run when `RESOLVE_SRC=1`, which the workflow sets). A repository whose
+   initial fetch exceeds 50 MB (`SRC_FETCH_LIMIT_MB`), or that cannot be fetched, is checked for
+   form and license only, with a note in the log. Measured 2026-10-07: that fetch is about
+   0.5 MB for the Raspberry Pi tools and 3.3 MB for Linux.
 3. A self-test that proves the gate works with this repository's own root marker: driver-lab's
    fixture specs that fit and do not fit this repository are copied into a temporary root, and
    the run fails unless the misfits fail with the gate's message and the fits pass. The fixtures
