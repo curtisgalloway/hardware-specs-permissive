@@ -52,3 +52,7 @@ jobs:
       # not fit must fail with the gate's message, and those that fit must pass.
       - name: License-gate self-test
         run: scripts/checks.sh self-test .driver-lab .hardware-specs-docs/specs
+        # Also proves resolution: a real pinned repository is fetched; a good anchor must pass
+        # and a bad one fail.
+        env:
+          RESOLVE_SRC: 1

@@ -203,6 +203,12 @@ make_root() {
 # records, and verification is not what these runs test).
 self_test() {
   local board_fit=""
+  # GitHub Actions sets CI=true: there the self-test must prove resolution, so a workflow
+  # that forgets RESOLVE_SRC=1 on this step fails instead of skipping it silently.
+  if [ "${CI:-}" = true ] && [ "${RESOLVE_SRC:-0}" != 1 ]; then
+    echo "self-test FAILED: running in CI without RESOLVE_SRC=1, so resolution would go unproved"
+    return 1
+  fi
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   if [ -n "$BOARD_FIT" ]; then
