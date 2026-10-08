@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: curtisgalloway/driver-lab
-          ref: c2217166e81797d6235a564e1202d03a1cbcea6f
+          ref: 2aa9f98963fcfc1d43f5943e40c0786cb6ec3b58
           path: .driver-lab
           persist-credentials: false
 
@@ -39,13 +39,28 @@ jobs:
           path: .hardware-specs-docs
           persist-credentials: false
 
+      # The checkers read Markdown with markdown-it-py, pinned to the version driver-lab's
+      # mdtokens.py requires; checks.sh runs them with this interpreter (CHECKS_PYTHON).
+      - name: Markdown parser dependency
+        run: |
+          python3 -m venv "$RUNNER_TEMP/md"
+          "$RUNNER_TEMP/md/bin/python" -m pip install markdown-it-py==4.2.0
+          echo "CHECKS_PYTHON=$RUNNER_TEMP/md/bin/python" >> "$GITHUB_ENV"
+
       - name: Root marker and board specs (spec_check.py --require-license)
         run: scripts/checks.sh specs .driver-lab .hardware-specs-docs/specs
 
-      - name: Peripheral specs (anchor_check.py --root specs --require-license)
+      - name: Peripheral specs and board specs with [src] facts (anchor_check.py --root specs --require-license)
         run: scripts/checks.sh anchors .driver-lab .hardware-specs-docs/specs
+        # Fetch the pinned repositories [src:] anchors cite (below a size limit) and resolve them.
+        env:
+          RESOLVE_SRC: 1
 
       # Proves the license gate with this repository's own root marker: fixture specs that do
       # not fit must fail with the gate's message, and those that fit must pass.
       - name: License-gate self-test
         run: scripts/checks.sh self-test .driver-lab .hardware-specs-docs/specs
+        # Also proves resolution: a real pinned repository is fetched; a good anchor must pass
+        # and a bad one fail.
+        env:
+          RESOLVE_SRC: 1
