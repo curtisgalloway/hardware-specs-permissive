@@ -42,7 +42,7 @@ jobs:
       - name: Root marker and board specs (spec_check.py --require-license)
         run: scripts/checks.sh specs .driver-lab .hardware-specs-docs/specs
 
-      - name: Peripheral specs (anchor_check.py --root specs --require-license)
+      - name: Peripheral specs and board specs with [src] facts (anchor_check.py --root specs --require-license)
         run: scripts/checks.sh anchors .driver-lab .hardware-specs-docs/specs
 
       # Proves the license gate with this repository's own root marker: fixture specs that do

@@ -65,8 +65,10 @@ the root marker. CI checks out driver-lab at one pinned commit and runs, through
 
 1. `spec_check.py specs .hardware-specs-docs/specs --require-license`: the root marker's license fields and every
    board spec, including the board-spec license gate on `resources.repos` licenses.
-2. `anchor_check.py <spec> --root specs --require-license` on every peripheral spec: anchors,
-   pins and the license gate. CI has no checkout of the cited source trees, so it checks the
+2. `anchor_check.py <spec> --root specs --require-license` on every peripheral spec, and on
+   every board spec with a `[src]` fact (a fact read from source, cited with `[src:<repo>:
+   path:L]` anchors whose pins are the spec's `resources.repos` entries): anchors, pins and the
+   license gate. CI has no checkout of the cited source trees, so it checks the
    anchors' form and licenses; resolving each `[src:]` line against its tree is part of
    verification (the skill's verify step).
 3. A self-test that proves the gate works with this repository's own root marker: driver-lab's

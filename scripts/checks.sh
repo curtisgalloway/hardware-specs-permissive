@@ -9,14 +9,17 @@
 #
 # Steps:
 #   specs      spec_check.py on specs/ (and any further roots) with --require-license
-#   anchors    anchor_check.py --root specs --require-license on every specs/**/*-spec.md,
-#              and a failure for any other Markdown file under specs/ that no check reads
+#   anchors    anchor_check.py --root specs --require-license on every specs/**/*-spec.md
+#              and on every board spec (specs/**/*.spec.md) carrying a [src:] anchor, and a
+#              failure for any other Markdown file under specs/ that no check reads
 #   self-test  prove the license gate with this repository's root marker (below)
 #   all        the three in order
 #
 # A further root is another spec root read beside specs/ so that overlays resolve.
-# hardware-specs-gpl and hardware-specs-docs pass none; hardware-specs-permissive
-# requires one, hardware-specs-docs' specs/.
+# hardware-specs-docs passes none; hardware-specs-permissive requires one, hardware-specs-docs'
+# specs/; hardware-specs-gpl requires two, hardware-specs-docs' specs/ then
+# hardware-specs-permissive's specs/ (a GPL overlay may add to a docs spec that a permissive
+# overlay also adds to).
 #
 # Needs bash 3.2 or later and python3.
 #
@@ -32,9 +35,12 @@ MISFIT=gpl-only-spec.md
 # (an empty BOARD_FIT checks widgetchip.spec.md alone):
 BOARD_FIT=widgetchip-bsd-overlay.spec.md
 BOARD_MISFIT=widgetchip-gpl3-overlay.spec.md
-# 1: every step needs a further root (the docs repository's specs/), so the cross-repository
-# overlay check never silently skips.
+# How many further roots every step needs (the first is always the docs repository's specs/),
+# so the cross-repository overlay check never silently skips.
 REQUIRE_FURTHER=1
+# Board-spec [src] fixture (widgetchip-src-overlay.spec.md beside widgetchip.spec.md):
+# 1 when this repository's marker accepts its BSD-3-Clause source, 0 when it must fail the gate.
+SRC_FIT=1
 
 usage() {
   echo "usage: scripts/checks.sh specs|anchors|self-test|all <driver-lab checkout> [<further root>...]" >&2
@@ -46,8 +52,8 @@ step=$1
 dl=$2
 shift 2
 further=("$@")
-if [ "$REQUIRE_FURTHER" = 1 ] && [ "${#further[@]}" -eq 0 ]; then
-  echo "usage: hardware-specs-permissive needs a further root: scripts/checks.sh $step $dl <hardware-specs-docs checkout>/specs" >&2
+if [ "${#further[@]}" -lt "$REQUIRE_FURTHER" ]; then
+  echo "usage: hardware-specs-permissive needs $REQUIRE_FURTHER further root(s): scripts/checks.sh $step $dl <hardware-specs-docs checkout>/specs" >&2
   exit 2
 fi
 
@@ -56,7 +62,8 @@ ANCHOR_CHECK=$dl/skills/peripheral-spec/scripts/anchor_check.py
 FIXTURES=$dl/skills/peripheral-spec/tests/fixtures/license-gate
 
 needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
-  "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT")
+  "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT"
+  "$FIXTURES/board/widgetchip-src-overlay.spec.md")
 if [ -n "$BOARD_FIT" ]; then
   needed+=("$FIXTURES/board/$BOARD_FIT")
 fi
@@ -90,7 +97,17 @@ check_anchors() {
     echo "== anchor_check.py $spec --root specs --require-license"
     python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
   done < <(find specs -name '*-spec.md' -print0 | sort -z)
-  echo "anchors: $n peripheral spec(s) checked, $failed failed"
+  # Board specs with [src] facts: their resources.repos entries are the pins (SPEC-FORMAT.md,
+  # "Facts read from source"), so anchor_check.py gates them as it gates peripheral specs.
+  local boards=0
+  while IFS= read -r -d '' spec; do
+    if grep -q '\[src:' "$spec"; then
+      boards=$((boards + 1))
+      echo "== anchor_check.py $spec --root specs --require-license"
+      python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
+    fi
+  done < <(find specs -name '*.spec.md' -print0 | sort -z)
+  echo "anchors: $n peripheral spec(s) and $boards board spec(s) with [src:] anchors checked, $failed failed"
   # Board specs (*.spec.md) are spec_check.py's, verification records (*.verify.md) its too.
   # Any other Markdown under specs/ would be checked by nothing: a misnamed peripheral spec.
   local stray=0
@@ -169,6 +186,23 @@ self_test() {
     "$FIXTURES/board/$BOARD_MISFIT"
   expect 1 "^error: .*: license gate: repos entry " "misfit $BOARD_MISFIT" \
     python3 "$SPEC_CHECK" "$tmp/board-misfit" --require-license
+
+  echo "== self-test: a [src] fact read from BSD-3-Clause source (widgetchip-src-overlay.spec.md), $([ "$SRC_FIT" = 1 ] && echo fit || echo misfit)"
+  make_root "$tmp/src" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" \
+    "$FIXTURES/board/widgetchip-src-overlay.spec.md"
+  if [ "$SRC_FIT" = 1 ]; then
+    expect 0 "" "fit widgetchip-src-overlay.spec.md (spec_check)" \
+      python3 "$SPEC_CHECK" "$tmp/src" --require-license
+    expect 0 "" "fit widgetchip-src-overlay.spec.md (anchor_check)" \
+      python3 "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+  else
+    expect 1 "^error: .*: license gate: \\[src\\] cites repos entry 'tools' " \
+      "misfit widgetchip-src-overlay.spec.md (spec_check)" \
+      python3 "$SPEC_CHECK" "$tmp/src" --require-license
+    expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " \
+      "misfit widgetchip-src-overlay.spec.md (anchor_check)" \
+      python3 "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+  fi
 
   if [ "${#further[@]}" -gt 0 ]; then
     echo "== self-test: an overlay here resolves against a spec in ${further[0]} only when both roots are read"
