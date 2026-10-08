@@ -18,7 +18,6 @@ material stays under its source's license.
 
 Specs with source notices:
 
-  specs/bcm2711.spec.md: armstubs/armstub8.S and armstubs/Makefile from
-    https://github.com/raspberrypi/tools at 439b6198a9b340de5998dd14a26a0d9d38a6bcac,
-    Copyright (c) 2016-2019 Raspberry Pi (Trading) Ltd. and (c) 2016 Stephen Warren,
-    BSD-3-Clause.
+  specs/bcm2711.spec.md: armstubs/armstub8.S from https://github.com/raspberrypi/tools
+    at 439b6198a9b340de5998dd14a26a0d9d38a6bcac, Copyright (c) 2016-2019 Raspberry Pi
+    (Trading) Ltd. and (c) 2016 Stephen Warren, BSD-3-Clause.
