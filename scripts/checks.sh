@@ -8,17 +8,34 @@
 #   scripts/checks.sh <step> <driver-lab checkout> [<further root>...]
 #
 # Steps:
-#   specs      spec_check.py on specs/ (and any further roots) with --require-license
-#   anchors    anchor_check.py --root specs --require-license on every specs/**/*-spec.md,
-#              and a failure for any other Markdown file under specs/ that no check reads
+#   specs      spec_check.py on specs/ (further roots as --context-root) with --require-license
+#              and --require-verified: nothing lands unverified or with a stale record
+#   anchors    anchor_check.py --root specs --require-license on every specs/**/*-spec.md
+#              and on every board spec (specs/**/*.spec.md) carrying a [src:] anchor, and a
+#              failure for any other Markdown file under specs/ that no check reads
 #   self-test  prove the license gate with this repository's root marker (below)
 #   all        the three in order
 #
-# A further root is another spec root read beside specs/ so that overlays resolve.
-# hardware-specs-gpl and hardware-specs-docs pass none; hardware-specs-permissive
-# requires one, hardware-specs-docs' specs/.
+# A further root is another spec root read beside specs/ so that overlays resolve. It is context
+# only: spec_check.py reads it with --context-root, so its own findings are warnings here and
+# fail only in its own repository's checks.
 #
-# Needs bash 3.2 or later and python3.
+# RESOLVE_SRC=1 (CI sets it) makes the anchors step fetch each pinned repository a board spec's
+# [src:] anchors cite, as a shallow, blob-less clone of the one commit, and resolve the anchors
+# against it; an entry whose initial fetch exceeds SRC_FETCH_LIMIT_MB (default 50) or fails is
+# checked for form and license only; any other fetch failure (a commit or repository that does
+# not exist, a URL that is not https) fails the step. The limit is measured after the fetch, so
+# it bounds what is kept; the fetcher's timeout bounds the transfer. Unset, nothing is fetched.
+# hardware-specs-docs passes none; hardware-specs-permissive requires one, hardware-specs-docs'
+# specs/; hardware-specs-gpl requires two, hardware-specs-docs' specs/ then
+# hardware-specs-permissive's specs/ (a GPL overlay may add to a docs spec that a permissive
+# overlay also adds to).
+#
+# Needs bash 3.2 or later and python3 with markdown-it-py 4.2.0, which the checkers read
+# Markdown with (driver-lab's peripheral-spec/scripts/mdtokens.py). The interpreter is
+# $CHECKS_PYTHON when set (CI sets it to a virtualenv holding the package), otherwise
+# "uv run --with markdown-it-py==4.2.0 python3" when uv is on PATH, otherwise python3. Without
+# the package at that version every step exits 3 ("missing dependency").
 #
 # Exit codes: 0 passed, 1 a check failed, 2 usage error, 3 missing precondition.
 set -euo pipefail
@@ -32,9 +49,12 @@ MISFIT=gpl-only-spec.md
 # (an empty BOARD_FIT checks widgetchip.spec.md alone):
 BOARD_FIT=widgetchip-bsd-overlay.spec.md
 BOARD_MISFIT=widgetchip-gpl3-overlay.spec.md
-# 1: every step needs a further root (the docs repository's specs/), so the cross-repository
-# overlay check never silently skips.
+# How many further roots every step needs (the first is always the docs repository's specs/),
+# so the cross-repository overlay check never silently skips.
 REQUIRE_FURTHER=1
+# Board-spec [src] fixture (widgetchip-src-overlay.spec.md beside widgetchip.spec.md):
+# 1 when this repository's marker accepts its BSD-3-Clause source, 0 when it must fail the gate.
+SRC_FIT=1
 
 usage() {
   echo "usage: scripts/checks.sh specs|anchors|self-test|all <driver-lab checkout> [<further root>...]" >&2
@@ -46,20 +66,39 @@ step=$1
 dl=$2
 shift 2
 further=("$@")
-if [ "$REQUIRE_FURTHER" = 1 ] && [ "${#further[@]}" -eq 0 ]; then
-  echo "usage: hardware-specs-permissive needs a further root: scripts/checks.sh $step $dl <hardware-specs-docs checkout>/specs" >&2
+if [ "${#further[@]}" -lt "$REQUIRE_FURTHER" ]; then
+  echo "usage: hardware-specs-permissive needs $REQUIRE_FURTHER further root(s): scripts/checks.sh $step $dl <hardware-specs-docs checkout>/specs" >&2
   exit 2
 fi
 
 SPEC_CHECK=$dl/skills/board-expert/scripts/spec_check.py
 ANCHOR_CHECK=$dl/skills/peripheral-spec/scripts/anchor_check.py
+FETCH_PINS=$dl/skills/board-expert/scripts/fetch_src_pins.py
 FIXTURES=$dl/skills/peripheral-spec/tests/fixtures/license-gate
 
-needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
-  "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT")
+needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FETCH_PINS"
+  "$FIXTURES/board/widgetchip-resolve-good-overlay.spec.md"
+  "$FIXTURES/board/widgetchip-resolve-bad-overlay.spec.md" "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
+  "$FIXTURES/board/widgetchip.spec.md" "$FIXTURES/board/$BOARD_MISFIT"
+  "$FIXTURES/board/widgetchip-src-overlay.spec.md")
 if [ -n "$BOARD_FIT" ]; then
   needed+=("$FIXTURES/board/$BOARD_FIT")
 fi
+MD_PKG=markdown-it-py==4.2.0
+if [ -n "${CHECKS_PYTHON:-}" ]; then
+  PY=("$CHECKS_PYTHON")
+elif command -v uv >/dev/null 2>&1; then
+  PY=(uv run --quiet --no-project --with "$MD_PKG" python3)
+else
+  PY=(python3)
+fi
+if ! "${PY[@]}" -c 'import sys, markdown_it; sys.exit(markdown_it.__version__ != "4.2.0")' \
+    >/dev/null 2>&1; then
+  echo "missing dependency: $MD_PKG is not importable by ${PY[*]} (install uv, or set" \
+    "CHECKS_PYTHON to a Python that has it)" >&2
+  exit 3
+fi
+
 for f in "${needed[@]}"; do
   if [ ! -f "$f" ]; then
     echo "missing precondition: $f (is $dl a driver-lab checkout at the pinned commit?)" >&2
@@ -71,16 +110,25 @@ if [ ! -f specs/board-specs.yaml ]; then
   exit 3
 fi
 # ${further[@]+...} keeps an empty array from tripping set -u on bash before 4.4.
+own=$(cd specs && pwd -P)
 for r in ${further[@]+"${further[@]}"}; do
   if [ ! -f "$r/board-specs.yaml" ]; then
     echo "missing precondition: $r/board-specs.yaml (a further root must be a spec root)" >&2
     exit 3
   fi
+  if [ "$(cd "$r" && pwd -P)" = "$own" ]; then
+    echo "usage: $r is this repository's own specs/; a further root is another repository's" >&2
+    exit 2
+  fi
 done
 
 check_specs() {
-  echo "== spec_check.py specs ${further[*]+${further[*]} }--require-license"
-  python3 "$SPEC_CHECK" specs ${further[@]+"${further[@]}"} --require-license
+  local ctx=() r
+  for r in ${further[@]+"${further[@]}"}; do
+    ctx+=(--context-root "$r")
+  done
+  echo "== spec_check.py specs ${ctx[*]+${ctx[*]} }--require-license --require-verified"
+  "${PY[@]}" "$SPEC_CHECK" specs ${ctx[@]+"${ctx[@]}"} --require-license --require-verified
 }
 
 check_anchors() {
@@ -88,9 +136,42 @@ check_anchors() {
   while IFS= read -r -d '' spec; do
     n=$((n + 1))
     echo "== anchor_check.py $spec --root specs --require-license"
-    python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
+    "${PY[@]}" "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
   done < <(find specs -name '*-spec.md' -print0 | sort -z)
-  echo "anchors: $n peripheral spec(s) checked, $failed failed"
+  # Board specs with [src] facts: their resources.repos entries are the pins (SPEC-FORMAT.md,
+  # "Facts read from source"), so anchor_check.py gates them as it gates peripheral specs.
+  local boards=0 cache="" repos line
+  if [ "${RESOLVE_SRC:-0}" = 1 ]; then
+    # One cache for the whole run: a repository at one commit is fetched once.
+    cache=$(mktemp -d)
+  fi
+  while IFS= read -r -d '' spec; do
+    # Case-insensitive, so a spec whose only anchor is a [SRC: variant still reaches
+    # anchor_check.py, which reports it.
+    if grep -qi '\[src:' "$spec"; then
+      boards=$((boards + 1))
+      repos=()
+      if [ -n "$cache" ]; then
+        # Read the fetcher's output from a file, not a process substitution, so its exit
+        # status is seen: a failed or crashed fetch fails the step.
+        if ! "${PY[@]}" "$FETCH_PINS" "$spec" "$cache" --limit-mb "${SRC_FETCH_LIMIT_MB:-50}" \
+            > "$cache/repos.txt"; then
+          echo "error: $spec: fetch_src_pins.py failed (see above)"
+          failed=$((failed + 1))
+        fi
+        while IFS= read -r line; do
+          repos+=(--repo "$line")
+        done < "$cache/repos.txt"
+      fi
+      echo "== anchor_check.py $spec --root specs --require-license ${repos[*]+${repos[*]}}"
+      "${PY[@]}" "$ANCHOR_CHECK" "$spec" --root specs --require-license ${repos[@]+"${repos[@]}"} \
+        || failed=$((failed + 1))
+    fi
+  done < <(find specs -name '*.spec.md' -print0 | sort -z)
+  if [ -n "$cache" ]; then
+    rm -rf "$cache"
+  fi
+  echo "anchors: $n peripheral spec(s) and $boards board spec(s) with [src:] anchors checked, $failed failed"
   # Board specs (*.spec.md) are spec_check.py's, verification records (*.verify.md) its too.
   # Any other Markdown under specs/ would be checked by nothing: a misnamed peripheral spec.
   local stray=0
@@ -138,8 +219,17 @@ make_root() {
   done
 }
 
+# The self-test checks synthetic fixtures for the license gate and resolution; its spec_check.py
+# runs leave out --require-verified on purpose (exempt: the fixtures carry no verification
+# records, and verification is not what these runs test).
 self_test() {
   local board_fit=""
+  # GitHub Actions sets CI=true: there the self-test must prove resolution, so a workflow
+  # that forgets RESOLVE_SRC=1 on this step fails instead of skipping it silently.
+  if [ "${CI:-}" = true ] && [ "${RESOLVE_SRC:-0}" != 1 ]; then
+    echo "self-test FAILED: running in CI without RESOLVE_SRC=1, so resolution would go unproved"
+    return 1
+  fi
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
   if [ -n "$BOARD_FIT" ]; then
@@ -149,35 +239,76 @@ self_test() {
   echo "== self-test: anchor gate, this repository's marker with $FIT (fit) and $MISFIT (misfit)"
   make_root "$tmp/anchors" specs/board-specs.yaml "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
   expect 0 "" "fit $FIT" \
-    python3 "$ANCHOR_CHECK" "$tmp/anchors/$FIT" --root "$tmp/anchors" --require-license
+    "${PY[@]}" "$ANCHOR_CHECK" "$tmp/anchors/$FIT" --root "$tmp/anchors" --require-license
   expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " "misfit $MISFIT" \
-    python3 "$ANCHOR_CHECK" "$tmp/anchors/$MISFIT" --root "$tmp/anchors" --require-license
+    "${PY[@]}" "$ANCHOR_CHECK" "$tmp/anchors/$MISFIT" --root "$tmp/anchors" --require-license
 
   echo "== self-test: anchor gate, ISC and 0BSD sources (fit), made from bsd-spec.md with the pin's license replaced"
   for lic in ISC 0BSD; do
     make_root "$tmp/$lic" specs/board-specs.yaml
     sed "s/BSD-3-Clause/$lic/g" "$FIXTURES/specs/bsd-spec.md" > "$tmp/$lic/$lic-spec.md"
     expect 0 "" "fit $lic-spec.md" \
-      python3 "$ANCHOR_CHECK" "$tmp/$lic/$lic-spec.md" --root "$tmp/$lic" --require-license
+      "${PY[@]}" "$ANCHOR_CHECK" "$tmp/$lic/$lic-spec.md" --root "$tmp/$lic" --require-license
   done
 
   echo "== self-test: board-spec gate, widgetchip.spec.md with ${BOARD_FIT:-no overlay} (fit) and $BOARD_MISFIT (misfit)"
   make_root "$tmp/board-fit" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" "$board_fit"
   expect 0 "" "fit widgetchip.spec.md ${BOARD_FIT}" \
-    python3 "$SPEC_CHECK" "$tmp/board-fit" --require-license
+    "${PY[@]}" "$SPEC_CHECK" "$tmp/board-fit" --require-license
   make_root "$tmp/board-misfit" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" \
     "$FIXTURES/board/$BOARD_MISFIT"
   expect 1 "^error: .*: license gate: repos entry " "misfit $BOARD_MISFIT" \
-    python3 "$SPEC_CHECK" "$tmp/board-misfit" --require-license
+    "${PY[@]}" "$SPEC_CHECK" "$tmp/board-misfit" --require-license
+
+  echo "== self-test: a [src] fact read from BSD-3-Clause source (widgetchip-src-overlay.spec.md), $([ "$SRC_FIT" = 1 ] && echo fit || echo misfit)"
+  make_root "$tmp/src" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" \
+    "$FIXTURES/board/widgetchip-src-overlay.spec.md"
+  if [ "$SRC_FIT" = 1 ]; then
+    expect 0 "" "fit widgetchip-src-overlay.spec.md (spec_check)" \
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/src" --require-license
+    expect 0 "" "fit widgetchip-src-overlay.spec.md (anchor_check)" \
+      "${PY[@]}" "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+  else
+    expect 1 "^error: .*: license gate: \\[src\\] cites repos entry 'tools' " \
+      "misfit widgetchip-src-overlay.spec.md (spec_check)" \
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/src" --require-license
+    expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " \
+      "misfit widgetchip-src-overlay.spec.md (anchor_check)" \
+      "${PY[@]}" "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+  fi
+
+  if [ "${RESOLVE_SRC:-0}" = 1 ]; then
+    # Proves resolution ran: a real pinned repository is fetched, a good anchor must pass and a
+    # bad one fail. Under a temporary marker that accepts BSD-3-Clause, so the fixture's license
+    # does not decide the result in any repository.
+    echo "== self-test: [src:] anchors resolve against the fetched pin (RESOLVE_SRC=1)"
+    mkdir -p "$tmp/resolve"
+    printf 'layer: public\nlicense: Apache-2.0\naccepts: [BSD-3-Clause]\n' > "$tmp/resolve/marker.yaml"
+    make_root "$tmp/resolve/root" "$tmp/resolve/marker.yaml" \
+      "$FIXTURES/board/widgetchip-resolve-good-overlay.spec.md" \
+      "$FIXTURES/board/widgetchip-resolve-bad-overlay.spec.md"
+    local kind out
+    for kind in good bad; do
+      out=$tmp/resolve/root/widgetchip-resolve-$kind-overlay.spec.md
+      "${PY[@]}" "$FETCH_PINS" "$out" "$tmp/resolve/cache" > "$tmp/resolve/$kind.txt"
+      if [ "$kind" = good ]; then
+        expect 0 "" "resolve-good (anchor exists at the pin)" \
+          "${PY[@]}" "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
+      else
+        expect 1 "^ERROR L[0-9]+: pin rpi-tools: .* does not exist at " "resolve-bad (no such file at the pin)" \
+          "${PY[@]}" "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
+      fi
+    done
+  fi
 
   if [ "${#further[@]}" -gt 0 ]; then
     echo "== self-test: an overlay here resolves against a spec in ${further[0]} only when both roots are read"
     make_root "$tmp/other" "${further[0]}/board-specs.yaml" "$FIXTURES/board/widgetchip.spec.md"
     make_root "$tmp/overlay" specs/board-specs.yaml "$FIXTURES/board/widgetchip-bsd-overlay.spec.md"
     expect 1 "^error: .*: overlays 'widgetchip' resolves to nothing$" "overlay without the second root" \
-      python3 "$SPEC_CHECK" "$tmp/overlay" --require-license
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/overlay" --require-license
     expect 0 "" "overlay with the second root" \
-      python3 "$SPEC_CHECK" "$tmp/overlay" "$tmp/other" --require-license
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/overlay" "$tmp/other" --require-license
   fi
   echo "self-test: passed"
 }
