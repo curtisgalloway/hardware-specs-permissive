@@ -39,6 +39,14 @@ jobs:
           path: .hardware-specs-docs
           persist-credentials: false
 
+      # The checkers read Markdown with markdown-it-py, pinned to the version driver-lab's
+      # mdtokens.py requires; checks.sh runs them with this interpreter (CHECKS_PYTHON).
+      - name: Markdown parser dependency
+        run: |
+          python3 -m venv "$RUNNER_TEMP/md"
+          "$RUNNER_TEMP/md/bin/python" -m pip install markdown-it-py==4.2.0
+          echo "CHECKS_PYTHON=$RUNNER_TEMP/md/bin/python" >> "$GITHUB_ENV"
+
       - name: Root marker and board specs (spec_check.py --require-license)
         run: scripts/checks.sh specs .driver-lab .hardware-specs-docs/specs
 

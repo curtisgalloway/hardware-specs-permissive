@@ -31,7 +31,11 @@
 # hardware-specs-permissive's specs/ (a GPL overlay may add to a docs spec that a permissive
 # overlay also adds to).
 #
-# Needs bash 3.2 or later and python3.
+# Needs bash 3.2 or later and python3 with markdown-it-py 4.2.0, which the checkers read
+# Markdown with (driver-lab's peripheral-spec/scripts/mdtokens.py). The interpreter is
+# $CHECKS_PYTHON when set (CI sets it to a virtualenv holding the package), otherwise
+# "uv run --with markdown-it-py==4.2.0 python3" when uv is on PATH, otherwise python3. Without
+# the package at that version every step exits 3 ("missing dependency").
 #
 # Exit codes: 0 passed, 1 a check failed, 2 usage error, 3 missing precondition.
 set -euo pipefail
@@ -80,6 +84,21 @@ needed=("$SPEC_CHECK" "$ANCHOR_CHECK" "$FETCH_PINS"
 if [ -n "$BOARD_FIT" ]; then
   needed+=("$FIXTURES/board/$BOARD_FIT")
 fi
+MD_PKG=markdown-it-py==4.2.0
+if [ -n "${CHECKS_PYTHON:-}" ]; then
+  PY=("$CHECKS_PYTHON")
+elif command -v uv >/dev/null 2>&1; then
+  PY=(uv run --quiet --no-project --with "$MD_PKG" python3)
+else
+  PY=(python3)
+fi
+if ! "${PY[@]}" -c 'import sys, markdown_it; sys.exit(markdown_it.__version__ != "4.2.0")' \
+    >/dev/null 2>&1; then
+  echo "missing dependency: $MD_PKG is not importable by ${PY[*]} (install uv, or set" \
+    "CHECKS_PYTHON to a Python that has it)" >&2
+  exit 3
+fi
+
 for f in "${needed[@]}"; do
   if [ ! -f "$f" ]; then
     echo "missing precondition: $f (is $dl a driver-lab checkout at the pinned commit?)" >&2
@@ -109,7 +128,7 @@ check_specs() {
     ctx+=(--context-root "$r")
   done
   echo "== spec_check.py specs ${ctx[*]+${ctx[*]} }--require-license --require-verified"
-  python3 "$SPEC_CHECK" specs ${ctx[@]+"${ctx[@]}"} --require-license --require-verified
+  "${PY[@]}" "$SPEC_CHECK" specs ${ctx[@]+"${ctx[@]}"} --require-license --require-verified
 }
 
 check_anchors() {
@@ -117,7 +136,7 @@ check_anchors() {
   while IFS= read -r -d '' spec; do
     n=$((n + 1))
     echo "== anchor_check.py $spec --root specs --require-license"
-    python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
+    "${PY[@]}" "$ANCHOR_CHECK" "$spec" --root specs --require-license || failed=$((failed + 1))
   done < <(find specs -name '*-spec.md' -print0 | sort -z)
   # Board specs with [src] facts: their resources.repos entries are the pins (SPEC-FORMAT.md,
   # "Facts read from source"), so anchor_check.py gates them as it gates peripheral specs.
@@ -127,13 +146,15 @@ check_anchors() {
     cache=$(mktemp -d)
   fi
   while IFS= read -r -d '' spec; do
-    if grep -q '\[src:' "$spec"; then
+    # Case-insensitive, so a spec whose only anchor is a [SRC: variant still reaches
+    # anchor_check.py, which reports it.
+    if grep -qi '\[src:' "$spec"; then
       boards=$((boards + 1))
       repos=()
       if [ -n "$cache" ]; then
         # Read the fetcher's output from a file, not a process substitution, so its exit
         # status is seen: a failed or crashed fetch fails the step.
-        if ! python3 "$FETCH_PINS" "$spec" "$cache" --limit-mb "${SRC_FETCH_LIMIT_MB:-50}" \
+        if ! "${PY[@]}" "$FETCH_PINS" "$spec" "$cache" --limit-mb "${SRC_FETCH_LIMIT_MB:-50}" \
             > "$cache/repos.txt"; then
           echo "error: $spec: fetch_src_pins.py failed (see above)"
           failed=$((failed + 1))
@@ -143,7 +164,7 @@ check_anchors() {
         done < "$cache/repos.txt"
       fi
       echo "== anchor_check.py $spec --root specs --require-license ${repos[*]+${repos[*]}}"
-      python3 "$ANCHOR_CHECK" "$spec" --root specs --require-license ${repos[@]+"${repos[@]}"} \
+      "${PY[@]}" "$ANCHOR_CHECK" "$spec" --root specs --require-license ${repos[@]+"${repos[@]}"} \
         || failed=$((failed + 1))
     fi
   done < <(find specs -name '*.spec.md' -print0 | sort -z)
@@ -218,42 +239,42 @@ self_test() {
   echo "== self-test: anchor gate, this repository's marker with $FIT (fit) and $MISFIT (misfit)"
   make_root "$tmp/anchors" specs/board-specs.yaml "$FIXTURES/specs/$FIT" "$FIXTURES/specs/$MISFIT"
   expect 0 "" "fit $FIT" \
-    python3 "$ANCHOR_CHECK" "$tmp/anchors/$FIT" --root "$tmp/anchors" --require-license
+    "${PY[@]}" "$ANCHOR_CHECK" "$tmp/anchors/$FIT" --root "$tmp/anchors" --require-license
   expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " "misfit $MISFIT" \
-    python3 "$ANCHOR_CHECK" "$tmp/anchors/$MISFIT" --root "$tmp/anchors" --require-license
+    "${PY[@]}" "$ANCHOR_CHECK" "$tmp/anchors/$MISFIT" --root "$tmp/anchors" --require-license
 
   echo "== self-test: anchor gate, ISC and 0BSD sources (fit), made from bsd-spec.md with the pin's license replaced"
   for lic in ISC 0BSD; do
     make_root "$tmp/$lic" specs/board-specs.yaml
     sed "s/BSD-3-Clause/$lic/g" "$FIXTURES/specs/bsd-spec.md" > "$tmp/$lic/$lic-spec.md"
     expect 0 "" "fit $lic-spec.md" \
-      python3 "$ANCHOR_CHECK" "$tmp/$lic/$lic-spec.md" --root "$tmp/$lic" --require-license
+      "${PY[@]}" "$ANCHOR_CHECK" "$tmp/$lic/$lic-spec.md" --root "$tmp/$lic" --require-license
   done
 
   echo "== self-test: board-spec gate, widgetchip.spec.md with ${BOARD_FIT:-no overlay} (fit) and $BOARD_MISFIT (misfit)"
   make_root "$tmp/board-fit" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" "$board_fit"
   expect 0 "" "fit widgetchip.spec.md ${BOARD_FIT}" \
-    python3 "$SPEC_CHECK" "$tmp/board-fit" --require-license
+    "${PY[@]}" "$SPEC_CHECK" "$tmp/board-fit" --require-license
   make_root "$tmp/board-misfit" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" \
     "$FIXTURES/board/$BOARD_MISFIT"
   expect 1 "^error: .*: license gate: repos entry " "misfit $BOARD_MISFIT" \
-    python3 "$SPEC_CHECK" "$tmp/board-misfit" --require-license
+    "${PY[@]}" "$SPEC_CHECK" "$tmp/board-misfit" --require-license
 
   echo "== self-test: a [src] fact read from BSD-3-Clause source (widgetchip-src-overlay.spec.md), $([ "$SRC_FIT" = 1 ] && echo fit || echo misfit)"
   make_root "$tmp/src" specs/board-specs.yaml "$FIXTURES/board/widgetchip.spec.md" \
     "$FIXTURES/board/widgetchip-src-overlay.spec.md"
   if [ "$SRC_FIT" = 1 ]; then
     expect 0 "" "fit widgetchip-src-overlay.spec.md (spec_check)" \
-      python3 "$SPEC_CHECK" "$tmp/src" --require-license
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/src" --require-license
     expect 0 "" "fit widgetchip-src-overlay.spec.md (anchor_check)" \
-      python3 "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+      "${PY[@]}" "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
   else
     expect 1 "^error: .*: license gate: \\[src\\] cites repos entry 'tools' " \
       "misfit widgetchip-src-overlay.spec.md (spec_check)" \
-      python3 "$SPEC_CHECK" "$tmp/src" --require-license
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/src" --require-license
     expect 1 "^ERROR L[0-9]+: license gate: .* does not accept \\(accepts: " \
       "misfit widgetchip-src-overlay.spec.md (anchor_check)" \
-      python3 "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
+      "${PY[@]}" "$ANCHOR_CHECK" "$tmp/src/widgetchip-src-overlay.spec.md" --root "$tmp/src" --require-license
   fi
 
   if [ "${RESOLVE_SRC:-0}" = 1 ]; then
@@ -269,13 +290,13 @@ self_test() {
     local kind out
     for kind in good bad; do
       out=$tmp/resolve/root/widgetchip-resolve-$kind-overlay.spec.md
-      python3 "$FETCH_PINS" "$out" "$tmp/resolve/cache" > "$tmp/resolve/$kind.txt"
+      "${PY[@]}" "$FETCH_PINS" "$out" "$tmp/resolve/cache" > "$tmp/resolve/$kind.txt"
       if [ "$kind" = good ]; then
         expect 0 "" "resolve-good (anchor exists at the pin)" \
-          python3 "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
+          "${PY[@]}" "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
       else
         expect 1 "^ERROR L[0-9]+: pin rpi-tools: .* does not exist at " "resolve-bad (no such file at the pin)" \
-          python3 "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
+          "${PY[@]}" "$ANCHOR_CHECK" "$out" --root "$tmp/resolve/root" --repo "$(cat "$tmp/resolve/$kind.txt")"
       fi
     done
   fi
@@ -285,9 +306,9 @@ self_test() {
     make_root "$tmp/other" "${further[0]}/board-specs.yaml" "$FIXTURES/board/widgetchip.spec.md"
     make_root "$tmp/overlay" specs/board-specs.yaml "$FIXTURES/board/widgetchip-bsd-overlay.spec.md"
     expect 1 "^error: .*: overlays 'widgetchip' resolves to nothing$" "overlay without the second root" \
-      python3 "$SPEC_CHECK" "$tmp/overlay" --require-license
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/overlay" --require-license
     expect 0 "" "overlay with the second root" \
-      python3 "$SPEC_CHECK" "$tmp/overlay" "$tmp/other" --require-license
+      "${PY[@]}" "$SPEC_CHECK" "$tmp/overlay" "$tmp/other" --require-license
   fi
   echo "self-test: passed"
 }
