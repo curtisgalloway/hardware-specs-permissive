@@ -27,8 +27,8 @@
 # the next pull request here must re-verify it. CI passes pr on pull requests, main otherwise.
 #
 # A further root is another spec root read beside specs/ so that overlays and references
-# resolve. It is context only: its own findings are warnings here and fail only in its own
-# repository's checks. hardware-specs-docs passes none; hardware-specs-permissive requires one,
+# resolve. It is context only: its findings are not reported here as such, but its own errors
+# make the root untrusted, and a reference into an untrusted root then fails here. hardware-specs-docs passes none; hardware-specs-permissive requires one,
 # hardware-specs-docs' specs/; hardware-specs-gpl requires two, hardware-specs-docs' specs/ then
 # hardware-specs-permissive's specs/.
 #

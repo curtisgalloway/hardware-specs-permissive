@@ -38,18 +38,18 @@ jobs:
         run: test "$TOOL_COMMIT" != 0000000000000000000000000000000000000000
       # This repository, beside (never containing) the context checkouts; its spec root is
       # repo/specs.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: repo
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: curtisgalloway/hardware-specs-docs
           ref: main
           path: ctx-docs
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: curtisgalloway/driver-lab
           ref: ${{ env.TOOL_COMMIT }}
@@ -83,7 +83,7 @@ jobs:
           path: site
           if-no-files-found: error
   deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule')
+    if: github.repository == 'curtisgalloway/hardware-specs-permissive' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'schedule')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -97,18 +97,18 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: repo
           ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: curtisgalloway/hardware-specs-docs
           ref: ${{ needs.build.outputs.docs_commit }}
           path: ctx-docs
           persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: curtisgalloway/driver-lab
           ref: ${{ env.TOOL_COMMIT }}
