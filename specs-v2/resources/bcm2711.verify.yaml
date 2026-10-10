@@ -1,0 +1,223 @@
+# SPDX-FileCopyrightText: 2026 contributors
+# SPDX-License-Identifier: Apache-2.0
+format: 2
+spec: bcm2711
+spec_file: bcm2711.spec.yaml
+spec_sha256: 7abd79e5de693a8c23b72a00f3fe1ebfa0e71383b9ccdb0c1483d31e2ad91480
+canonical: fact-v1
+sources: []
+summary:
+  pass: 9
+  fail: 0
+  unverifiable: 0
+  gap: 0
+  adjudicate: 0
+verdicts:
+  generic-timer-frequency:
+    basis: b4dcb97cd4491cb5c4302f34ec140b3a26a970ba5e6d3921db235268d3ac639c
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: '`OSC_FREQ` is 54000000 under `BCM2711`
+
+      (53-57), written to `CNTFRQ_EL0` (110-112); `CNTVOFF_EL2` is written from the zero register
+
+      (114-115). The `LOCAL_CONTROL` comment at 94-97 still says 19.2 MHz crystal; it is a stale
+
+      comment about the local timer source, not the value written to `CNTFRQ_EL0`.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/2 "Generic timer frequency"
+      format: 1
+  scr-el3-bits:
+    basis: c8c6c206a8c9c7149d401fd320e314df07a93b62866d9d6ffa4dbb9c8947dd52
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: '`SCR_VAL` is RW(10), HCE(8), SMD(7), bits 5 and 4, NS(0)
+
+      (59-66), written to `SCR_EL3` at 121-123. DDI 0487 M.d §D24.2.168: RW on p. D24-9638 (next
+
+      lower level AArch64), HCE and SMD on pp. D24-9639–D24-9640 (HVC enabled; SMC UNDEFINED, with
+
+      the note that an `HCR_EL2.TSC` trap of EL1 SMC takes priority), NS on p. D24-9641; bits 5:4
+      are
+
+      RES1 on p. D24-9640. The stated consequences match.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/3 "SCR_EL3 bits"
+      format: 1
+  scr-el3-value:
+    basis: 5186c44f2647509039c27923e8fbdfa1f73423a3709838fe29d6ff7518fd41d3
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: 'premises are the six bits of 59-66; 0x400 + 0x100 + 0x80
+
+      + 0x20 + 0x10 + 0x1 = 0x5B1 is correct; the TODO is present and the inference is not written
+      as
+
+      read.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/4 "SCR_EL3 value"
+      format: 1
+  entry-exception-level-and-state:
+    basis: bf4ec785541519b34b502a94919627ee20e83d476ac9c4e486b687bdf1a0eb5f
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: '`SPSR_EL3_VAL` is D, A, I, F plus mode
+
+      9 (EL2h, SP_EL2) (74-80), written to `spsr_el3` before the `eret` (143-148); `SCTLR_EL2` gets
+
+      0x30C50830 under a comment saying the set bits are RES1 and LE with WXN/I/SA/C/A/M off
+
+      (136-141); the primary path loads `kernel_entry32` and `dtb_ptr32` into w4 and w0, zeroes
+
+      x1–x3 and branches (163-171). booting.rst § 4 "Call the kernel image" asks for x0 = DTB
+
+      physical address and x1–x3 = 0, and DAIF masked.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/5 "Entry exception level and state"
+      format: 1
+  smpen-at-el3:
+    basis: 423a7a891e8532699e0abf547ac64c1462b68bd908af30bfe8a932697a0d9d72
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: '`CPUECTLR_EL1_SMPEN` is bit 6 (71-72), moved as the whole
+
+      value into `CPUECTLR_EL1` at 129-131, before the `eret` at 148.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/6 "SMPEN at EL3"
+      format: 1
+  patch-words:
+    basis: d739fa0d06519ceff24fc35e773397b4f216fa3e96f4044e0b78fbd8417bc4ba
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: '`stub_magic` 0x5AFE570B at 0xF0, `stub_version` at 0xF4,
+
+      `dtb_ptr32` at 0xF8, `kernel_entry32` at 0xFC, the last two assembled as zero (193-208) and
+      only
+
+      loaded (163-165); the comment at 190-192 says the firmware clears the eight bytes at 0xF0 after
+
+      reading, leaving the slot for core 3. The TF-A page, "TF-A port design", says the GPU firmware,
+
+      on finding a magic value in the stub, writes the kernel and DTB load addresses near the start
+
+      of memory, which supports the firmware sentence.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/7 "Patch words"
+      format: 1
+  secondary-core-release-spin-table:
+    basis: 904a1290c9c02f89f75db36bb721eaa8e2db9e75f833f7ffaf30ab0694e1ffde
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: 'MPIDR bits 1:0 select the path
+
+      (151-153); secondaries `wfe` and load the 64-bit word at `spin_cpu0` + 8 × core until
+
+      non-zero, then zero x0 and join `boot_kernel`, which zeroes x1–x3 and branches (155-161,
+
+      167-171); the slots are at 0xD8, 0xE0, 0xE8, 0xF0 (175-189), and core 0 never polls 0xD8. The
+
+      hardware-location sentence carries a document class: the TF-A page says the firmware loads a
+
+      stub file (`armstub8.bin` or `armstub=`) to the start of DRAM, address 0; the Makefile at the
+
+      pin also links the AArch64 stubs at 0. For the built-in stub this rests on the first bullet''s
+
+      build-identity step, which the overlay''s preamble already states.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: 'Quick-facts/8 "Secondary-core release: spin-table"'
+      format: 1
+  gic-programming-at-el3:
+    basis: 7d12a0c4669936aadd890d5b3c06d5995f3ecc14dd728a2c55018730dfd8f132
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: 'the register offsets and `IT_NR` = 8 (85-89);
+
+      `setup_gic` is called before the `eret` under `GIC` (133-135); in `setup_gic` (214-235) a core
+
+      with non-zero MPIDR bits 1:0 writes 3 to `GICD_CTLR`, core 0 branches past it under a "primary
+
+      core" comment, and every core writes 0x1E7 to `GICC_CTLR`, 0xFF to `GICC_PMR`, and all-ones
+      to
+
+      eight words from `GICD_IGROUPR` downward (IDs 0–255). Non-`HIGH_PERI` `GIC_DISTB`/`GIC_CPUB`
+      are
+
+      0xFF84_1000/0xFF84_2000 (45-51). "Every core" is supported by the source: secondaries reach
+      the
+
+      spin loop only after the `eret`, which follows `setup_gic`.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Quick-facts/9 "GIC programming at EL3"
+      format: 1
+  the-group-settings-the-stub-wrote-are-secure-state:
+    basis: 2611b50ae2b0c9b0327954129a20d64f32cefb1f62989c49181ce2ea35d07fb8
+    verdict: PASS
+    date: '2026-10-08'
+    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
+      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
+      separately)
+    note: 'the retitled lead-in
+
+      now claims only the group settings, which resolves the earlier FAIL (the stub''s `GICC_PMR`
+
+      write is no longer in scope). IHI 0048B §4.3.4 (p. 4-89): with the Security Extensions the
+
+      group registers are Secure-only and RAZ/WI to Non-secure accesses; GIC-400 TRM §1.1 (p. 1-2)
+
+      lists the GIC Security Extensions among its features, and TRM §3.2.1 (p. 3-3) says the same
+
+      of `GICD_IGROUPRn`.'
+    carried_from:
+      repo: hardware-specs-permissive
+      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
+      path: specs/resources/bcm2711.verify.md
+      key: Gotchas/2 "The group settings the stub wrote are secure state"
+      format: 1
