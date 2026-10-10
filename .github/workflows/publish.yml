@@ -26,7 +26,7 @@ permissions:
   contents: read
 env:
   # driver-lab's commit: the same pin as checks.yml's driver-lab checkout; bump both together.
-  TOOL_COMMIT: 'b86af09353111af1cccb6c529dc6cf6cad1726d0'
+  TOOL_COMMIT: '6e2b1b5a991b74aa390b63915f75f704b0938eb9'
   PYTHONDONTWRITEBYTECODE: '1'
 jobs:
   build:
