@@ -5,9 +5,50 @@ spec: bcm2711
 spec_file: bcm2711.spec.yaml
 spec_sha256: 7abd79e5de693a8c23b72a00f3fe1ebfa0e71383b9ccdb0c1483d31e2ad91480
 canonical: fact-v1
-sources: []
+sources:
+- name: rpi-tools
+  commit: 439b6198a9b340de5998dd14a26a0d9d38a6bcac
+  fetch: ok
+  note: armstubs/armstub8.S and armstubs/Makefile read at the pin; notice (BSD 3-clause) compared
+    with declared BSD-3-Clause, match
+- name: rpi-docs-config-txt
+  commit: 42deaefbc8b4edfe342b0d759ec16cda3be5e7d8
+  fetch: ok
+  note: headings armstub and arm_64bit read (raw file at the pin)
+- name: rpi-docs-legacy-config-txt
+  commit: 42deaefbc8b4edfe342b0d759ec16cda3be5e7d8
+  fetch: ok
+  note: headings enable_gic and arm_peri_high read
+- name: tfa-rpi4
+  commit: 510355478850fb9bb4b064554d3dc2416b8b4b96
+  fetch: ok
+  note: headings TF-A port design and Build Instructions read
+- name: linux-arm64-booting
+  commit: 8d3ae59288f1e7d58d76558a6ee96d533bc5019f
+  fetch: ok
+  note: read from the Linux checkout at the pin; no heading CPU enable methods exists
+- name: bcm2711-peripherals
+  url: https://datasheets.raspberrypi.com/bcm2711/bcm2711-peripherals.pdf
+  sha256: d6e16ea089a1716e80621f99a26e130a2379f0a81d945dc22e4f80dc49dcdc78
+  fetch: ok
+  note: hash matches declared; sections 1.2.3, 6.5.1-6.5.2 (printed page 92) read
+- name: arm-arm
+  url: https://documentation-service.arm.com/static/6abbec2a6db85c5e6614a4a1
+  sha256: 80d589a4645feba6bdb9d77edfaf04d4394d5d5444a4c41f97cf4fdd20eee3d5
+  fetch: ok
+  note: hash matches declared; pages D1-7206, D1-7258, D8-7730, D24-9639..9641, D24-9765, A2-169 read
+- name: gic-400-trm
+  url: https://documentation-service.arm.com/static/5e8f15e27100066a414f7424
+  sha256: 15463e9ac6c82114378b4dc7cee1fb4eaa545f4b5073af4bf8a57d22b9403c52
+  fetch: ok
+  note: hash matches declared; section 1.1 p1-2, Tables 3-1 and 3-2 read
+- name: gicv2-spec
+  url: https://documentation-service.arm.com/static/5f8ff21df86e16515cdbfafe
+  sha256: 7a05a16404e2e1099a456b398d1c9c4e148629b25a455bc22647dbcaeb80abda
+  fetch: ok
+  note: hash matches declared; section 4.3.4 page 4-89 read
 summary:
-  pass: 9
+  pass: 15
   fail: 0
   unverifiable: 0
   gap: 0
@@ -99,6 +140,18 @@ verdicts:
       path: specs/resources/bcm2711.verify.md
       key: Quick-facts/5 "Entry exception level and state"
       format: 1
+    readers:
+    - verifier: Claude Code, claude-opus-5-5, reader bcm2711-sf2-10b-second
+      verdict: PASS
+      date: '2026-10-09'
+      note: 'armstub8.S at rpi-tools 439b6198: lines 74-80 SPSR_EL3_VAL = D|A|I|F|EL2h (mode 9, SP_EL2);
+        136-141 SCTLR_EL2 = 0x30c50830 with the comment "All set bits below are res1. LE, no WXN/I/SA/C/A/M";
+        143-148 eret to in_el2; 163-171 primary loads w4 from kernel_entry32 and w0 from dtb_ptr32,
+        zeroes x1-x3 and branches. booting.rst "Call the kernel image" asks x0 = DTB address, x1-x3
+        = 0. Matches; the claim attributes the SCTLR bit meaning to the comment. License: BSD-3-Clause
+        notice at lines 1-27 of the same file matches the declared license. Contrary search: the whole
+        file for other exception returns or entry paths; secondaries take the same register setup
+        with x0 = 0; none found.'
   smpen-at-el3:
     basis: 423a7a891e8532699e0abf547ac64c1462b68bd908af30bfe8a932697a0d9d72
     verdict: PASS
@@ -221,3 +274,167 @@ verdicts:
       path: specs/resources/bcm2711.verify.md
       key: Gotchas/2 "The group settings the stub wrote are secure state"
       format: 1
+  which-build-ships:
+    basis: 52af57fe78d820c9edd63f28997f0ca46c1fbf9785e19da576ca656a05e0b216
+    verdict: PASS
+    date: '2026-10-09'
+    verifier: Claude Code, claude-sonnet-5-5, reader bcm2711-sf2-10b-primary-src
+    note: 'Read versus derived: a declared inference with premises, one assumption (stub-build-identity)
+      and a hedged claim ("most likely", "candidate build"), so the certainty matches the support.
+      Premises checked against the bytes. rpi-docs-config-txt headings armstub (default stub is in
+      firmware, selected by model and settings) and arm_64bit (defaults to 1 on Pi 4, 400, CM4, CM4S)
+      match. rpi-docs-legacy-config-txt heading enable_gic (default 1) matches. tfa-rpi4 "TF-A port
+      design" (firmware loads armstub to address 0, writes kernel and DTB load addresses if it finds
+      a magic value) matches. rpi-tools armstubs/armstub8.S at the pin has exactly three conditionals,
+      BCM2711 (lines 32, 53), HIGH_PERI (33, 45) and GIC (133, 212), and its non-HIGH_PERI GIC addresses
+      0xFF841000 and 0xFF842000 (49-50) and, under BCM2711, ARM Local 0xFF800000 (37) equal bcm2711-peripherals
+      section 6.5.1-6.5.2 printed page 92 Low Peripheral values (0xFF840000 GIC base, 0xFF800000 ARM_LOCAL)
+      plus gic-400-trm Table 3-1 (distributor +0x1000, CPU interface +0x2000). The derivation (three
+      conditionals, so under the assumption the default 64-bit stub in Low Peripheral mode with GIC
+      on is the BCM2711 plus GIC build) follows. Open item that bounds the inference: the citation-pass
+      TODO that armstub8.S is the only AArch64 source in armstubs/ is not a premise; I confirmed it
+      from armstubs/Makefile at the pin (armstub.S and armstub7.S are built with the 32-bit toolchain,
+      the 64-bit targets use %8.S), but that file is not in the rpi-tools files list, so the claim
+      leans on the declared stub-build-identity assumption and the hedging, which is adequate. The
+      hardware TODO method (capture the whole loaded stub image and compare it, excluding the patched
+      words at 0xF0-0xFF) can observe the open question.'
+    contrary_evidence: none-found
+    citation_precision: imprecise
+  interrupt-groups-at-entry:
+    basis: c545997e9b3047b9ffab7142f82a2b10ce5b5f07200efcd030c2963905843c4e
+    verdict: PASS
+    date: '2026-10-09'
+    verifier: Claude Code, claude-sonnet-5-5, reader bcm2711-sf2-10b-primary-src
+    note: 'Declared inference. Source: armstubs/armstub8.S lines 228-234 write all-ones to offsets
+      0..28 from GICD_IGROUPR (0x80), eight words (IT_NR 8, loop stores at 28 down to 0), lines 133-135
+      call setup_gic on every core before the eret at 148 and the SCR_EL3.NS write is at 121-123,
+      before it; the file never writes SCTLR_EL3 (no hit for SCTLR_EL3, VBAR or MDCR in the whole
+      file). Datasheet 6.5.1 page 92: NUM_SPIS=192. gic-400-trm Table 3-2 note d (page 3-5): ITLinesNumber
+      is NUM_SPIS/32 and all IDs to (ITLinesNumber+1)*32-1 are implemented except 16-24, so IDs 0-223
+      and seven group registers. gicv2-spec 4.3.4 page 4-89: implemented IGROUPR count is ITLinesNumber+1,
+      unimplemented bits RAZ/WI, IGROUPR0 banked per processor, Secure-access only. gic-400-trm section
+      1.1 page 1-2: Group 1 is the Non-secure group. arm-arm: D1.1.2 rule RZFPTR (page D1-7206, EL3
+      is Secure state without FEAT_RME), A2.3 page A2-169 (FEAT_RME is an Armv9 extension), D24.2.176
+      SCTLR_EL3 M bit page D24-9765 (resets to 0 when EL3 is the highest implemented level; the text
+      states this under Warm reset), D8.2.12.1 rule RPPDBS page D8-7730 (stage 1 disabled, Secure
+      state access goes to Secure PA space). All hashes match the declared sha256. Limits on what
+      the inference establishes: the premise that the Cortex-A72 is Armv8-A (so no FEAT_RME) is left
+      as a citation-pass TODO and the datasheet does not state it (it only refers to Cortex-A72 documentation),
+      so the step "EL3 accesses are Secure" rests on that unstated premise plus the three declared
+      assumptions (all-four-cores-enter-the-stub, cores-reach-the-stub-from-reset, interconnect-presents-secure-attribute-to-the-gic);
+      the result is conditional on them, and PASS here does not perform the hardware TODO (read the
+      group registers back at EL3).'
+    contrary_evidence: none-found
+    citation_precision: exact
+  no-el3-runtime-with-the-stock-stub:
+    basis: c7af5ec5dedf2f52ac1882030233c1350ba026d36f89d9bcba1c43a05a6b4f5f
+    verdict: PASS
+    date: '2026-10-09'
+    verifier: Claude Code, claude-sonnet-5-5, reader bcm2711-sf2-10b-r3-primary
+    note: 'Conditional inference read premise by premise. armstubs/armstub8.S at rpi-tools 439b6198:
+      SCR_VAL (lines 59-66) is RW|HCE|SMD|RES1 bits 5,4|NS, so bit 7 (SMD) is set and bits 3,2,1 (EA,
+      FIQ, IRQ) are clear; SCR_EL3 is written whole at line 123. CPTR_EL3 is written from xzr at 119.
+      The only eret in the file is line 148 (searched the whole file; no SMC, HVC, VBAR or MDCR text
+      anywhere, and no msr after line 148, setup_gic uses mrs/str). Secondaries loop on wfe/ldr/cbz
+      at 155-161 and branch only on a non-zero slot. Arm ARM M.d (sha256 matches the declared 80d589a4...):
+      SCR_EL3 D24.2.168, pages D24-9639 to D24-9641, gives SMD=1 as SMC UNDEFINED at EL1 and above
+      with the HCR_EL2.TSC priority note, and EA/FIQ/IRQ=0 as not taken to EL3 from below EL3; rule
+      RHMXQS at D1-7258 agrees. Linux v7.2 arm64 booting.rst, "Call the kernel image": enable methods
+      are spin-table (poll cpu-release-addr) or psci. TF-A docs/plat/rpi4.rst, "Build Instructions":
+      bl31.bin loaded via armstub= in config.txt, BL31 patches the DTB to advertise PSCI. The armstub8.S
+      header is a BSD 3-clause notice, matching the declared BSD-3-Clause. Read versus derived: the
+      conclusion is a declared inference with premises, assumptions (stub-build-identity, all-four-cores-enter-the-stub,
+      cores-reach-the-stub-from-reset) and the #which-build-ships fact, whose limited confidence the
+      derivation states; no undeclared premise was needed. The MDCR_EL3 clause is correctly limited
+      to "not set by the stub" (reset value UNKNOWN). Scope caveat: "only through the spin-table"
+      covers the stub''s release path and the two documented Linux enable methods; EL2 software implementing
+      PSCI over HVC is outside the claim. The TODO (an SMC from EL2 should raise an undefined-instruction
+      exception, EC 0x00) is observable from EL2 but tests only the SMD part; PASS does not mean it
+      was run. Resolve: 32 anchors resolved, 0 skipped. Citation precision: the absence statements
+      (the file never writes VBAR_EL3 or MDCR_EL3, and its only eret) are anchored to lines 91-148
+      only, while setup_gic follows from line 210; the absence over the whole file needs a search
+      anchor (VBAR_EL3, MDCR_EL3, eret) or an extended range. Contrary evidence search: the whole
+      stub file, the SCR_EL3 EA/FIQ/IRQ/SMD fields, the SMC rule in the Arm ARM and the Linux enable-method
+      text; nothing contradicting found.'
+    contrary_evidence: none-found
+    citation_precision: imprecise
+  high-peripheral-mode-needs-another-build:
+    basis: 6326584d6be63aec3ecec09494f40b877660e15ca033aa024614ede555b3ec09
+    verdict: PASS
+    date: '2026-10-09'
+    verifier: Claude Code, claude-sonnet-5-5, reader bcm2711-sf2-10b-primary-src
+    note: 'armstubs/armstub8.S lines 32-51: with HIGH_PERI (and BCM2711) LOCAL_CONTROL is 0x4c0000000
+      and GIC_DISTB 0x4c0041000 (GIC_CPUB 0x4c0042000), otherwise 0xff800000 and 0xff841000; these
+      equal 0x4_C000_0000 and 0x4_C004_1000 as claimed. bcm2711-peripherals 6.5.1-6.5.2 printed page
+      92: GIC-400 base 0x4c0040000 (0xff840000 in Low Peripheral mode) and ARM_LOCAL 0x4c0000000 (0xff800000),
+      so the two bases match the two maps, with the distributor at +0x1000. Scope note: the ARM Local
+      value 0x4c0000000 requires BCM2711 defined as well (without it line 41 gives 0x40000000), which
+      the claim''s context (BCM2711 build) covers. Contrary search: armstubs/Makefile at the pin builds
+      a third target armstub8-gic-highperi.bin with -DHIGH_PERI=1, so the "another build" exists in
+      the same repo; it supports the claim and bears on the sibling fact documentation-says-high-
+      peripheral-stub-support-is-missing (the documentation may be stale on whether a high-peripheral
+      stub is built into firmware). No conflicting source found.'
+    contrary_evidence: none-found
+    citation_precision: imprecise
+    readers:
+    - verifier: Claude Code, claude-opus-5-5, reader bcm2711-sf2-10b-second
+      verdict: PASS
+      date: '2026-10-09'
+      note: 'armstub8.S lines 32-51 at 439b6198: under BCM2711 with HIGH_PERI, LOCAL_CONTROL 0x4c0000000
+        and GIC_DISTB 0x4c0041000 (GIC_CPUB 0x4c0042000); without it 0xff800000 and 0xff841000. Datasheet
+        6.5.1-6.5.2 p92 gives the ARM_LOCAL and GIC-400 bases in both maps. Matches. Citation imprecise:
+        the distributor values need the +0x1000 offset from gic-400-trm 3.2 Table 3-1 p3-3, which
+        this fact does not cite; add it. Contrary search: the Makefile at the pin builds both variants
+        (armstub8-gic and armstub8-gic-highperi), consistent; none found.'
+  documentation-says-high-peripheral-stub-support-is-missing:
+    basis: 227f86d6f44291f046b53c5d6c01aa85f2a298245bb91f90c25e5e07d27990d8
+    verdict: PASS
+    date: '2026-10-09'
+    verifier: Claude Code, claude-sonnet-5-5, reader bcm2711-sf2-10b-primary-src
+    note: 'rpi-docs-legacy-config-txt, heading arm_peri_high, NOTE: "Currently ARM stub support is
+      missing, so you will also need to load a suitable file using armstub." The claim is an attribution
+      to the documentation and matches it. Scope searched: the whole legacy_config_txt page and config_txt
+      page at the pin for other statements about the stub and high peripheral mode, none found. Other
+      evidence outside the attribution: armstubs/Makefile in rpi-tools builds armstub8-gic-highperi.bin
+      and embeds it in armstubs.h, which may mean the documentation is stale; it does not change what
+      the documentation says.'
+    contrary_evidence: none-found
+    citation_precision: exact
+  stub-build-must-match-peripheral-mode:
+    basis: cc111de858c94db9134483a92f18a94969400ec1b564e9457bd18a548fba23ae
+    upstream:
+      bcm2711@hardware-specs-docs#high-peripheral-mode-is-full-map: fc5d2bab90baa2ccdc92413eb8ed42bb161c1af04ee261061e9213ae25279609
+    verdict: PASS
+    date: '2026-10-09'
+    verifier: Claude Code, claude-sonnet-5-5, reader bcm2711-sf2-10b-r2-primary
+    note: 'Inference whose premises I checked against sources. armstubs/armstub8.S at 439b6198 lines
+      32-51: with HIGH_PERI, LOCAL_CONTROL 0x4c0000000, GIC_DISTB 0x4c0041000, GIC_CPUB 0x4c0042000;
+      without, 0xff800000, 0xff841000, 0xff842000 (BCM2711). Datasheet sections 6.5.1 and 6.5.2 (printed
+      p.92): GIC-400 base 0x4c0040000, 0xff840000 in Low Peripheral mode; ARM_LOCAL 0x4c0000000, 0xff800000
+      in Low Peripheral mode; so the HIGH_PERI build matches the full map and the other build matches
+      Low Peripheral. The legacy config.txt entry says stub support for high peripheral mode is missing.
+      The third premise is the docs spec''s high-peripheral-mode-is-full-map (my verdict PASS as likely).
+      The claim is hedged ("most likely") and states that it rests on that likely reading, so its
+      certainty matches its premises. Note the Makefile packs an armstub8-gic-highperi.bin, which
+      makes a high-peripheral stub exist but does not show the firmware selects it; the claim does
+      not assert otherwise. In the full map the Low Peripheral addresses fall in the first 4 GB (SDRAM),
+      so wrong-mode writes either miss the blocks or hit RAM; "miss those blocks" holds.'
+    contrary_evidence: none-found
+    citation_precision: exact
+    readers:
+    - verifier: Claude Code, claude-opus-5-5, reader bcm2711-sf2-10b-r2-second
+      verdict: PASS
+      date: '2026-10-09'
+      note: 'Premises checked. raspberrypi/tools 439b6198 armstubs/armstub8.S lines 32-51: with HIGH_PERI,
+        LOCAL_CONTROL 0x4c0000000 and GIC_DISTB 0x4c0041000; without, 0xff800000 and 0xff841000. Datasheet
+        6.5.1-6.5.2 p92: GIC-400 base 0x4c0040000, 0xff840000 in Low Peripheral mode; ARM_LOCAL 0x4c0000000,
+        0xff800000. Datasheet Figure 1 (p5) shows the full map has SDRAM below 0x4_0000_0000 and the
+        Low Peripheral view has nothing at 0x4_C000_0000, so each build''s GIC and ARM_LOCAL writes
+        miss the blocks in the other map. The legacy config arm_peri_high note says stub support is
+        missing. The derivation is conditional on the docs spec''s likely reading (high peripheral
+        mode is the full map), declared as a premise and stated in the claim, and "most likely" matches
+        that certainty. Contrary search: the pinned Makefile (lines 1, 26-27, 78, 97-98) builds and
+        packs an armstub8-gic-highperi stub, which bears on whether firmware supplies one, not on
+        this claim. TODO (boot with arm_peri_high=1 and no armstub=, read GIC group/control state
+        with a secure-access debugger) can observe the default stub''s behavior in high mode; it tests
+        one direction only. Citation exact.'

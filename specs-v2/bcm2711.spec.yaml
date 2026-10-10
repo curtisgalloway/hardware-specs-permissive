@@ -576,6 +576,9 @@ facts:
           pages:
           - D24-9639
           - D24-9641
+        - section: D1.4.9
+          clause: rule RHMXQS
+          page: D1-7258
     - states: the stub writes zero to `CPTR_EL3`
       support:
       - class: src
@@ -611,16 +614,22 @@ facts:
       - class: standard
         doc: linux-arm64-booting
         at:
-        - heading: CPU enable methods
+        - heading: Call the kernel image
+    - states: Trusted Firmware-A's BL31 for the rpi4 platform, copied to the SD card and named by an `armstub=` entry in `config.txt`, patches the device tree in memory to advertise PSCI support
+      support:
+      - class: doc
+        doc: tfa-rpi4
+        at:
+        - heading: Build Instructions
+    - assumption: all-four-cores-enter-the-stub
+    - assumption: cores-reach-the-stub-from-reset
     - fact: '#which-build-ships'
       uses: the build-identity step
-    derivation: no SMC, interrupt or SError is taken to EL3 after the `eret`, and no EL3 vectors exist to handle one, so there is no monitor and no SMC-based PSCI; of the two enable methods only spin-table remains, and the stub's slot poll is its only release path; all of this given the build-identity step in the first bullet
+    derivation: no SMC, interrupt or SError is taken to EL3 after the `eret`, and no EL3 vectors exist to handle one, so there is no monitor and no SMC-based PSCI; of the two enable methods only spin-table remains, and the stub's slot poll is its only release path; all of this given the build identity in the `#which-build-ships` premise; for PSCI the documented route is BL31 loaded through `armstub=`
   todo:
     check: hardware
     text: |-
       an SMC from EL2 should take an undefined-instruction exception at EL2.
-
-      citation-pass: the premise that BL31 provides PSCI on this platform was cited in v1 to the Trusted Firmware-A documentation, Raspberry Pi 4 platform, with no section or heading, so it is not yet a premise and its locator is still to be found.
 - id: the-group-settings-the-stub-wrote-are-secure-state
   section: gotchas
   title: The group settings the stub wrote are secure state
@@ -680,15 +689,18 @@ facts:
   section: gotchas
   title: A stub build must match the peripheral mode
   claim: |-
-    A stub built for one peripheral mode programs the wrong addresses in the
-    other, and high peripheral mode needs a stub built for it.
+    A stub built for one peripheral mode most likely programs the wrong addresses in the
+    other, and high peripheral mode most likely needs a stub built for it. This rests on high
+    peripheral mode being the full map, which the docs spec holds only as likely.
   support:
   - class: inference
     premises:
     - fact: '#high-peripheral-mode-needs-another-build'
       uses: each build hard-codes one map's bases, matching one of the datasheet's two maps
     - fact: '#documentation-says-high-peripheral-stub-support-is-missing'
-    derivation: each build hard-codes one map's bases, so in the other mode its GIC and ARM_LOCAL writes miss those blocks
+    - fact: "bcm2711@hardware-specs-docs#high-peripheral-mode-is-full-map"
+      uses: high peripheral mode is likely the one in which the Arm cores use the full-map addresses (held as likely, not established)
+    derivation: each build hard-codes one map's bases; if high peripheral mode is the full map (a likely, not established, reading), the HIGH_PERI build matches it and the Low Peripheral build's bases are not the GIC and ARM_LOCAL blocks there, so in the other mode that build's GIC and ARM_LOCAL writes most likely miss those blocks
   todo:
     check: hardware
     text: |-
@@ -702,6 +714,10 @@ orientation: |-
   `HIGH_PERI` not defined), citing the lines through the `rpi-tools` entry above. No document says
   the firmware's built-in stub is that build; the first bullet argues it, and every hardware
   consequence below rests on it.
+
+  The facts here name symbols and constants from `armstubs/armstub8.S` in raspberrypi/tools at
+  `439b6198a9b340de5998dd14a26a0d9d38a6bcac`, which carries the notice reproduced under Source
+  notices.
 notices:
 - repo: rpi-tools
   path: armstubs/armstub8.S
