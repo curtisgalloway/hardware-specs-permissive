@@ -1,0 +1,750 @@
+# SPDX-FileCopyrightText: 2026 contributors
+# SPDX-License-Identifier: Apache-2.0
+format: 2
+overlays: bcm2711
+resources:
+  documents:
+  - title: Raspberry Pi documentation, config.txt boot options (config_txt/boot.adoc)
+    url: https://github.com/raspberrypi/documentation/blob/42deaefbc8b4edfe342b0d759ec16cda3be5e7d8/documentation/asciidoc/computers/config_txt/boot.adoc
+    access: public
+    verified: '2026-10-07'
+    fetch: ok
+    name: rpi-docs-config-txt
+    class: doc
+    commit: 42deaefbc8b4edfe342b0d759ec16cda3be5e7d8
+  - title: Raspberry Pi documentation, legacy config.txt boot options (legacy_config_txt/boot.adoc)
+    url: https://github.com/raspberrypi/documentation/blob/42deaefbc8b4edfe342b0d759ec16cda3be5e7d8/documentation/asciidoc/computers/legacy_config_txt/boot.adoc
+    access: public
+    verified: '2026-10-07'
+    fetch: ok
+    name: rpi-docs-legacy-config-txt
+    class: doc
+    commit: 42deaefbc8b4edfe342b0d759ec16cda3be5e7d8
+  - title: Trusted Firmware-A documentation, Raspberry Pi 4 platform (docs/plat/rpi4.rst)
+    url: https://github.com/ARM-software/arm-trusted-firmware/blob/510355478850fb9bb4b064554d3dc2416b8b4b96/docs/plat/rpi4.rst
+    access: public
+    verified: '2026-10-07'
+    fetch: ok
+    name: tfa-rpi4
+    class: doc
+    commit: 510355478850fb9bb4b064554d3dc2416b8b4b96
+  - title: Linux arm64 boot protocol (Documentation/arch/arm64/booting.rst), Linux v7.2
+    url: https://github.com/torvalds/linux/blob/8d3ae59288f1e7d58d76558a6ee96d533bc5019f/Documentation/arch/arm64/booting.rst
+    access: public
+    verified: '2026-10-07'
+    fetch: ok
+    name: linux-arm64-booting
+    class: standard
+    commit: 8d3ae59288f1e7d58d76558a6ee96d533bc5019f
+  - title: BCM2711 ARM Peripherals, release 4 (2022-01-18), Raspberry Pi document RP-008248-DS
+    url: https://datasheets.raspberrypi.com/bcm2711/bcm2711-peripherals.pdf
+    access: public
+    verified: '2026-10-07'
+    fetch: ok
+    note: printed page numbers
+    name: bcm2711-peripherals
+    class: databook
+    sha256: d6e16ea089a1716e80621f99a26e130a2379f0a81d945dc22e4f80dc49dcdc78
+    page_numbering: printed
+  - title: Arm Architecture Reference Manual for A-profile architecture (DDI 0487), issue M.d
+    url: https://developer.arm.com/documentation/ddi0487/latest
+    access: public
+    fetch: ok
+    name: arm-arm
+    class: standard
+    sha256: 80d589a4645feba6bdb9d77edfaf04d4394d5d5444a4c41f97cf4fdd20eee3d5
+    retrieval:
+    - url: https://documentation-service.arm.com/static/6abbec2a6db85c5e6614a4a1
+    - url: https://documentation-service.arm.com/documentation/ddi0487/latest
+    pages: 17150
+  - title: Arm CoreLink GIC-400 Generic Interrupt Controller TRM, r0p1 (DDI 0471B)
+    url: https://developer.arm.com/documentation/ddi0471/latest
+    access: public
+    fetch: ok
+    name: gic-400-trm
+    class: databook
+    sha256: 15463e9ac6c82114378b4dc7cee1fb4eaa545f4b5073af4bf8a57d22b9403c52
+    retrieval:
+    - url: https://documentation-service.arm.com/static/5e8f15e27100066a414f7424
+  - title: Arm Generic Interrupt Controller Architecture Specification, GICv1 and GICv2 (IHI 0048B)
+    url: https://developer.arm.com/documentation/ihi0048/b
+    access: public
+    fetch: ok
+    name: gicv2-spec
+    class: standard
+    sha256: 7a05a16404e2e1099a456b398d1c9c4e148629b25a455bc22647dbcaeb80abda
+    retrieval:
+    - url: https://documentation-service.arm.com/static/5f8ff21df86e16515cdbfafe
+  repos:
+  - name: rpi-tools
+    url: https://github.com/raspberrypi/tools
+    license: BSD-3-Clause
+    verified: '2026-10-07'
+    fetch: ok
+    fetch_via: git
+    files:
+    - path: armstubs/armstub8.S
+      license_from: notice
+    note: the Raspberry Pi Arm stubs; only armstub8.S is cited. At this commit armstub8.S, armstub.S, armstub7.S and bin2c.c carry BSD 3-clause notices (no SPDX lines); the Makefile carries none and is not cited
+    commit: 439b6198a9b340de5998dd14a26a0d9d38a6bcac
+assumptions:
+- id: stub-build-identity
+  text: the firmware's built-in 64-bit stubs are built from `armstubs/armstub8.S`, which no document states
+- id: all-four-cores-enter-the-stub
+  text: the firmware starts all four cores at the stub's entry
+- id: cores-reach-the-stub-from-reset
+  text: the cores reach the stub from reset
+- id: interconnect-presents-secure-attribute-to-the-gic
+  text: the BCM2711 interconnect presents the Secure attribute of a Secure-state access to the GIC-400, which no document states
+kind: overlay
+facts:
+- id: which-build-ships
+  section: quick-facts
+  title: Which build ships
+  claim: |-
+    For a 64-bit boot on the boards the `enable_gic` page names (it says
+    Raspberry Pi 4B; this spec takes its wording to cover every BCM2711 board), the stub the firmware
+    runs by default in Low Peripheral mode is most likely `armstub8.S` built with `BCM2711` and
+    `GIC` defined; this is a candidate build, held with limited confidence, not an identified
+    shipped revision.
+  support:
+  - class: inference
+    premises:
+    - states: the default stub is built into the firmware and chosen by model and settings
+      support:
+      - class: doc
+        doc: rpi-docs-config-txt
+        at:
+        - heading: armstub
+    - states: '`arm_64bit` defaults to 1 on Raspberry Pi 4, 400 and Compute Module 4 and 4S'
+      support:
+      - class: doc
+        doc: rpi-docs-config-txt
+        at:
+        - heading: arm_64bit
+    - states: the GIC-400 is the default interrupt controller
+      support:
+      - class: doc
+        doc: rpi-docs-legacy-config-txt
+        at:
+        - heading: enable_gic
+    - assumption: stub-build-identity
+    - states: the firmware finds a magic value in the stub and writes the kernel and device-tree load addresses into it
+      support:
+      - class: doc
+        doc: tfa-rpi4
+        at:
+        - heading: TF-A port design
+    - states: this source carries the magic word and those two words, and its comment says the firmware clears the magic slot for reuse as a release slot
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 190
+          - 192
+          symbol: spin_cpu3
+    - states: its non-`HIGH_PERI` ARM Local base and GIC distributor and CPU-interface addresses are the datasheet's Low Peripheral ones
+      support:
+      - class: databook
+        doc: bcm2711-peripherals
+        at:
+        - section: 6.5.1–6.5.2
+          page: '92'
+    - states: the distributor is at `+0x1000` and the CPU interface at `+0x2000` from the GIC base
+      support:
+      - class: databook
+        doc: gic-400-trm
+        at:
+        - section: '3.2'
+          table: 3-1
+          page: 3-3
+    derivation: '`arm_64bit` defaulting to 1 makes the default stub an AArch64 one; `BCM2711`, `GIC` and `HIGH_PERI` are the only conditionals in `armstub8.S`, so if the assumption holds the default is the `BCM2711` and `GIC` build'
+  todo:
+    check: hardware
+    text: |-
+      on a recorded board, configuration and firmware release, capture the whole stub
+      image the firmware loads (through `setup_gic` past `0x100` and the trailing literals), and
+      compare it with this build, excluding the words the firmware patches at `0xF0`–`0xFF`; or
+      boot this build with `armstub=` and scope observations to it.
+
+      citation-pass: v1 states without a citation that in `armstubs/` at the pin `armstub8.S` is the only AArch64 source, as `armstub.S` and `armstub7.S` are 32-bit. It is not yet a premise: it needs a search anchor over the `armstubs/` directory, and the `rpi-tools` files list (D12) has no entry for a directory, so adding one is a license-entry decision for a reader with the source.
+- id: generic-timer-frequency
+  section: quick-facts
+  title: Generic timer frequency
+  claim: |-
+    The BCM2711 build writes 54000000 (54 MHz) to `CNTFRQ_EL0` and 0
+    to `CNTVOFF_EL2`.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 53
+      - 57
+      symbol: OSC_FREQ
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 110
+      - 112
+      symbol: OSC_FREQ
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 114
+      - 115
+      symbol: CNTVOFF_EL2
+- id: scr-el3-bits
+  section: quick-facts
+  title: SCR_EL3 bits
+  claim: |-
+    The stub's `SCR_EL3` value sets RW (bit 10), HCE (bit 8), SMD (bit 7), bits
+    5 and 4, and NS (bit 0), and writes it to `SCR_EL3`. By the architecture's field definitions,
+    EL2 then runs in AArch64 and non-secure, HVC is enabled, and SMC is undefined at EL2; at EL1 it
+    is undefined unless EL2 traps it first through `HCR_EL2.TSC`, which takes priority.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 59
+      - 66
+      symbol: SCR_VAL
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 121
+      - 123
+      symbol: SCR_VAL
+  - class: standard
+    doc: arm-arm
+    at:
+    - section: 'D24.2.168 `SCR_EL3`: RW'
+      page: D24-9638
+    - section: 'D24.2.168 `SCR_EL3`: HCE and SMD'
+      pages:
+      - D24-9639
+      - D24-9640
+    - section: 'D24.2.168 `SCR_EL3`: NS'
+      page: D24-9641
+- id: scr-el3-value
+  section: quick-facts
+  title: SCR_EL3 value
+  claim: The value the stub writes is `0x5B1`.
+  support:
+  - class: inference
+    premises:
+    - fact: '#scr-el3-bits'
+      uses: the six bits the source names by bit position and never sums
+    derivation: 0x400 + 0x100 + 0x80 + 0x20 + 0x10 + 0x1 = 0x5B1
+  todo:
+    check: hardware
+    text: the register is EL3-only, so read it with a debugger that can access EL3 state.
+- id: entry-exception-level-and-state
+  critical: true
+  section: quick-facts
+  title: Entry exception level and state
+  claim: |-
+    The stub drops from EL3 to EL2 using SP_EL2 with D, A, I
+    and F masked, after writing `0x30C50830` to `SCTLR_EL2` (its comment: the set bits are RES1;
+    little-endian, MMU, caches and alignment checks off). The primary core then branches to the
+    address in `kernel_entry32` with `x0` = the word at `dtb_ptr32` and `x1`–`x3` = 0, the register
+    state the arm64 boot protocol asks for.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 74
+      - 80
+      symbol: SPSR_EL3_VAL
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 136
+      - 141
+      symbol: SCTLR_EL2
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 143
+      - 148
+      symbol: SPSR_EL3_VAL
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 163
+      - 171
+      symbol: primary_cpu
+  - class: standard
+    doc: linux-arm64-booting
+    at:
+    - heading: Call the kernel image
+- id: smpen-at-el3
+  section: quick-facts
+  title: SMPEN at EL3
+  claim: |-
+    Before dropping to EL2 the stub writes `CPUECTLR_EL1` with only bit 6, SMPEN,
+    set.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 71
+      - 72
+      symbol: CPUECTLR_EL1_SMPEN
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 129
+      - 131
+      symbol: CPUECTLR_EL1_SMPEN
+- id: patch-words
+  section: quick-facts
+  title: Patch words
+  claim: |-
+    The stub image holds the magic word `0x5AFE570B` at offset `0xF0`, a version
+    word at `0xF4`, a 32-bit device-tree pointer at `0xF8` and a 32-bit kernel entry address at
+    `0xFC`; the last two are zero in the image and only read by the stub, and a comment says the
+    firmware clears the eight bytes at `0xF0` after reading them so the slot serves as core 3's
+    release word. The firmware writes the kernel and device-tree load addresses into a stub that
+    carries a magic value.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 187
+      - 192
+      symbol: spin_cpu3
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 193
+      - 208
+      symbol: stub_magic
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 163
+      - 165
+      symbol: primary_cpu
+  - class: doc
+    doc: tfa-rpi4
+    at:
+    - heading: TF-A port design
+- id: secondary-core-release-spin-table
+  section: quick-facts
+  title: 'Secondary-core release: spin-table'
+  claim: |-
+    Cores whose `MPIDR_EL1` bits 1:0 are non-zero wait with
+    `wfe`, each polling a 64-bit slot indexed by those bits: `0xD8` (core 0's slot, unused),
+    `0xE0`, `0xE8`, `0xF0`. A non-zero value is the address they branch to, with `x0`–`x3` = 0.
+    The stub is loaded at DRAM address 0, so the slot offsets are physical addresses.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 151
+      - 153
+      symbol: MPIDR_EL1
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 155
+      - 161
+      symbol: spin_cpu0
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 167
+      - 171
+      symbol: boot_kernel
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 175
+      - 189
+      symbol: spin_cpu0
+  - class: doc
+    doc: tfa-rpi4
+    at:
+    - heading: TF-A port design
+- id: gic-programming-at-el3
+  section: quick-facts
+  title: GIC programming at EL3
+  claim: |-
+    In the `GIC` build every core, at EL3, writes `0x1E7` to its
+    CPU-interface control register and `0xFF` to its priority mask, and writes all-ones to eight
+    `GICD_IGROUPR` words (interrupt IDs 0–255); cores whose `MPIDR_EL1` bits 1:0 are non-zero also
+    write 3 to the distributor control register, while core 0 branches past that write under a
+    comment calling it the primary core. The stub's `GIC_DISTB` is `0xFF84_1000` and its `GIC_CPUB`
+    `0xFF84_2000`.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 45
+      - 51
+      symbol: GIC_DISTB
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 85
+      - 89
+      symbol: IT_NR
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 133
+      - 135
+      symbol: setup_gic
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 214
+      - 235
+      symbol: setup_gic
+- id: interrupt-groups-at-entry
+  section: quick-facts
+  title: Interrupt groups at entry
+  claim: |-
+    With the stub's GIC setup, every implemented interrupt is in
+    Group 1 (non-secure): IDs 0–223 are the implemented range (less the unused PPIs 16–24, which
+    the GIC-400 does not implement), so only seven group registers exist, and the stub's eighth
+    word, `GICD_IGROUPR7`, lies beyond them.
+  support:
+  - class: inference
+    premises:
+    - states: the stub writes all-ones to eight group words
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 228
+          - 234
+          symbol: setup_gic
+    - states: NUM_SPIS=192
+      support:
+      - class: databook
+        doc: bcm2711-peripherals
+        at:
+        - section: 6.5.1
+          page: '92'
+    - states: ITLinesNumber is NUM_SPIS/32 and every ID up to (ITLinesNumber+1)×32−1 is implemented except 16–24
+      support:
+      - class: databook
+        doc: gic-400-trm
+        at:
+        - section: '3.3'
+          table: 3-2
+          page: 3-5
+        note: Table 3-2 note d
+    - states: there are ITLinesNumber+1 group registers, and a bit for an unimplemented interrupt is RAZ/WI, and `GICD_IGROUPR0` (IDs 0–31) is banked per processor
+      support:
+      - class: standard
+        doc: gicv2-spec
+        at:
+        - section: 4.3.4
+          page: 4-89
+    - states: every core runs `setup_gic` before its `eret`
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 133
+          - 135
+          symbol: setup_gic
+    - assumption: all-four-cores-enter-the-stub
+    - states: Group 1 is the Non-secure group on the GIC-400
+      support:
+      - class: databook
+        doc: gic-400-trm
+        at:
+        - section: '1.1'
+          page: 1-2
+    - states: the stub sets `SCR_EL3.NS` before calling `setup_gic`
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 121
+          - 123
+          symbol: SCR_VAL
+    - states: EL3 executes in Secure state whatever NS says on a PE without FEAT_RME
+      support:
+      - class: standard
+        doc: arm-arm
+        at:
+        - section: D1.1.2
+          clause: rule RZFPTR
+          page: D1-7206
+    - states: FEAT_RME is an Armv9 extension
+      support:
+      - class: standard
+        doc: arm-arm
+        at:
+        - section: A2.3
+          page: A2-169
+    - states: the stub never writes `SCTLR_EL3`
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 91
+          - 148
+          symbol: _start
+    - assumption: cores-reach-the-stub-from-reset
+    - states: '`SCTLR_EL3.M` resets to 0 when EL3 is the highest implemented Exception level, so EL3 stage 1 translation is off'
+      support:
+      - class: standard
+        doc: arm-arm
+        at:
+        - section: D24.2.176
+          heading: SCTLR_EL3
+          clause: M bit
+          page: D24-9765
+    - states: with stage 1 off an access from Secure state goes to the Secure PA space
+      support:
+      - class: standard
+        doc: arm-arm
+        at:
+        - section: D8.2.12.1
+          clause: rule RPPDBS
+          page: D8-7730
+    - assumption: interconnect-presents-secure-attribute-to-the-gic
+    - fact: '#which-build-ships'
+      uses: the build-identity step
+    derivation: the stub's group writes are secure accesses; ITLinesNumber is 6, so 7 registers cover IDs 0–223; each core's own write sets its banked copy for IDs 0–31, and the shared registers cover the SPIs; and the build-identity step in the first bullet
+  todo:
+    check: hardware
+    text: |-
+      the group
+      registers are secure-only, so read them back at EL3 from a modified stub or with a debugger that makes
+      secure accesses.
+
+      citation-pass: the premise that the Cortex-A72 is Armv8-A was cited in v1 to the Raspberry Pi documentation BCM2711 processor page with no section or heading, so it is not yet a premise and its locator is still to be found.
+- id: no-el3-runtime-with-the-stock-stub
+  section: gotchas
+  title: No EL3 runtime with the stock stub
+  claim: |-
+    The stock stub sets `SCR_EL3.SMD` and leaves
+    `SCR_EL3` EA, FIQ and IRQ clear, so no SMC, IRQ, FIQ or SError reaches EL3; it leaves EL3
+    through one `eret` and installs no EL3 vectors, so there is no monitor: no SMC-based PSCI, and
+    secondary cores come up only through the spin-table. It also clears `CPTR_EL3` and never writes
+    `MDCR_EL3`, so where debug events are routed is not set by the stub. For PSCI, load Trusted
+    Firmware-A's BL31 with `armstub=`.
+  support:
+  - class: inference
+    premises:
+    - states: '`SCR_VAL` sets SMD and leaves EA, FIQ and IRQ, bits 3 to 1, clear'
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 59
+          - 66
+          symbol: SCR_VAL
+    - states: SMD set makes SMC undefined at EL1 and above, with an `HCR_EL2.TSC` trap to EL2 taking priority, and EA, FIQ and IRQ clear mean external aborts, SErrors, FIQs and IRQs below EL3 are not taken to EL3
+      support:
+      - class: standard
+        doc: arm-arm
+        at:
+        - section: D24.2.168
+          pages:
+          - D24-9639
+          - D24-9641
+        - section: D1.4.9
+          clause: rule RHMXQS
+          page: D1-7258
+    - states: the stub writes zero to `CPTR_EL3`
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 117
+          - 119
+          symbol: CPTR_EL3
+    - states: the stub's EL3 code ends in its only `eret`, and the file never writes `VBAR_EL3` or `MDCR_EL3`
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 91
+          - 148
+          symbol: _start
+    - states: secondary cores leave the stub only when their slot turns non-zero
+      support:
+      - class: src
+        anchors:
+        - repo: rpi-tools
+          path: armstubs/armstub8.S
+          lines:
+          - 151
+          - 161
+          symbol: spin_cpu0
+    - states: arm64 Linux brings secondaries up by spin-table or by PSCI
+      support:
+      - class: standard
+        doc: linux-arm64-booting
+        at:
+        - heading: Call the kernel image
+    - states: Trusted Firmware-A's BL31 for the rpi4 platform, copied to the SD card and named by an `armstub=` entry in `config.txt`, patches the device tree in memory to advertise PSCI support
+      support:
+      - class: doc
+        doc: tfa-rpi4
+        at:
+        - heading: Build Instructions
+    - assumption: all-four-cores-enter-the-stub
+    - assumption: cores-reach-the-stub-from-reset
+    - fact: '#which-build-ships'
+      uses: the build-identity step
+    derivation: no SMC, interrupt or SError is taken to EL3 after the `eret`, and no EL3 vectors exist to handle one, so there is no monitor and no SMC-based PSCI; of the two enable methods only spin-table remains, and the stub's slot poll is its only release path; all of this given the build identity in the `#which-build-ships` premise; for PSCI the documented route is BL31 loaded through `armstub=`
+  todo:
+    check: hardware
+    text: |-
+      an SMC from EL2 should take an undefined-instruction exception at EL2.
+- id: the-group-settings-the-stub-wrote-are-secure-state
+  section: gotchas
+  title: The group settings the stub wrote are secure state
+  claim: |-
+    A non-secure kernel cannot read back the
+    stub's group settings: the group registers read as zero to non-secure accesses. Checking them
+    needs a secure access at EL3 or from a debugger.
+  support:
+  - class: standard
+    doc: gicv2-spec
+    at:
+    - section: 4.3.4
+      page: 4-89
+  - class: databook
+    doc: gic-400-trm
+    at:
+    - section: '1.1'
+      page: 1-2
+    note: the GIC-400 implements the GIC Security Extensions
+- id: high-peripheral-mode-needs-another-build
+  critical: true
+  section: gotchas
+  title: High peripheral mode needs another build
+  claim: |-
+    The two builds use different bases, each
+    matching one of the datasheet's two maps: with `HIGH_PERI` defined the source uses the full-map
+    bases `0x4_C000_0000` (ARM Local) and `0x4_C004_1000` (distributor), without it the Low
+    Peripheral ones.
+  support:
+  - class: src
+    anchors:
+    - repo: rpi-tools
+      path: armstubs/armstub8.S
+      lines:
+      - 32
+      - 51
+      symbol: HIGH_PERI
+  - class: databook
+    doc: bcm2711-peripherals
+    at:
+    - section: 6.5.1–6.5.2
+      page: '92'
+    note: the GIC-400 and ARM_LOCAL bases differ between the full map and Low Peripheral mode
+- id: documentation-says-high-peripheral-stub-support-is-missing
+  section: gotchas
+  title: The documentation says Arm stub support for high peripheral mode is missing
+  claim: |-
+    The documentation says Arm stub
+    support for high peripheral mode is missing.
+  support:
+  - class: doc
+    doc: rpi-docs-legacy-config-txt
+    at:
+    - heading: arm_peri_high
+- id: stub-build-must-match-peripheral-mode
+  critical: true
+  section: gotchas
+  title: A stub build must match the peripheral mode
+  claim: |-
+    A stub built for one peripheral mode most likely programs the wrong addresses in the
+    other, and high peripheral mode most likely needs a stub built for it. This rests on high
+    peripheral mode being the full map, which the docs spec holds only as likely.
+  support:
+  - class: inference
+    premises:
+    - fact: '#high-peripheral-mode-needs-another-build'
+      uses: each build hard-codes one map's bases, matching one of the datasheet's two maps
+    - fact: '#documentation-says-high-peripheral-stub-support-is-missing'
+    - fact: "bcm2711@hardware-specs-docs#high-peripheral-mode-is-full-map"
+      uses: high peripheral mode is likely the one in which the Arm cores use the full-map addresses (held as likely, not established)
+    derivation: each build hard-codes one map's bases; if high peripheral mode is the full map (a likely, not established, reading), the HIGH_PERI build matches it and the Low Peripheral build's bases are not the GIC and ARM_LOCAL blocks there, so in the other mode that build's GIC and ARM_LOCAL writes most likely miss those blocks
+  todo:
+    check: hardware
+    text: |-
+      boot
+      with arm_peri_high=1 and no armstub= line, and record whether the stub's GIC writes land, by
+      reading the GIC's group and control state with a debugger that makes secure accesses.
+orientation: |-
+  Adds to the `bcm2711` spec in `hardware-specs-docs` the facts that only the source of the
+  Raspberry Pi Arm stub, `armstubs/armstub8.S` in raspberrypi/tools, states. Each `[src]` bullet
+  says what that source does when built for BCM2711 (with `BCM2711` and `GIC` defined and
+  `HIGH_PERI` not defined), citing the lines through the `rpi-tools` entry above. No document says
+  the firmware's built-in stub is that build; the first bullet argues it, and every hardware
+  consequence below rests on it.
+
+  The facts here name symbols and constants from `armstubs/armstub8.S` in raspberrypi/tools at
+  `439b6198a9b340de5998dd14a26a0d9d38a6bcac`, which carries the notice reproduced under Source
+  notices.
+notices:
+- repo: rpi-tools
+  path: armstubs/armstub8.S
+  text: |-
+    Copyright (c) 2016-2019 Raspberry Pi (Trading) Ltd.
+    Copyright (c) 2016 Stephen Warren <swarren@wwwdotorg.org>
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name of the copyright holder nor the names of its contributors
+      may be used to endorse or promote products derived from this software
+      without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.

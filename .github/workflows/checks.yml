@@ -15,21 +15,26 @@ permissions:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    env:
+      # The verification policy (driver-lab design D19): pull requests must re-verify every
+      # fact, including one staled through a reference into another repository; main and manual
+      # runs only warn on such upstream-stale facts.
+      CHECKS_MODE: ${{ github.event_name == 'pull_request' && 'pr' || 'main' }}
     steps:
       # actions/checkout v7.0.1, pinned by SHA.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      # The checkers (spec_check.py, anchor_check.py) and the self-test's fixtures live in
-      # driver-lab. Pinned to a commit on its main branch so an upstream edit cannot change what
-      # runs here unreviewed; bump the ref to take a new one.
+      # spec.py (spec format 2) and the self-test's fixtures live in driver-lab. Pinned to a
+      # commit on its main branch so an upstream edit cannot change what runs here unreviewed;
+      # bump the ref (and publish.yml's TOOL_COMMIT) to take a new one.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: curtisgalloway/driver-lab
-          ref: 2aa9f98963fcfc1d43f5943e40c0786cb6ec3b58
+          ref: b86af09353111af1cccb6c529dc6cf6cad1726d0
           path: .driver-lab
           persist-credentials: false
 
-      # Overlays here may target specs in hardware-specs-docs, so spec_check.py reads both roots.
+      # Overlays here may target specs in hardware-specs-docs, so spec.py reads both roots.
       # Its main branch rather than a pin: it holds spec data only, no code that runs here, and
       # an overlay must resolve against the docs specs as they are published.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -39,28 +44,33 @@ jobs:
           path: .hardware-specs-docs
           persist-credentials: false
 
-      # The checkers read Markdown with markdown-it-py, pinned to the version driver-lab's
-      # mdtokens.py requires; checks.sh runs them with this interpreter (CHECKS_PYTHON).
-      - name: Markdown parser dependency
+      # spec.py's pinned dependencies (PyYAML, jsonschema, markdown-it-py and theirs), installed
+      # only from the hashes in driver-lab's requirements.txt; checks.sh runs spec.py with this
+      # interpreter (CHECKS_PYTHON).
+      - name: Pinned spec-format dependencies
         run: |
-          python3 -m venv "$RUNNER_TEMP/md"
-          "$RUNNER_TEMP/md/bin/python" -m pip install markdown-it-py==4.2.0
-          echo "CHECKS_PYTHON=$RUNNER_TEMP/md/bin/python" >> "$GITHUB_ENV"
+          python3 -m venv "$RUNNER_TEMP/spec"
+          "$RUNNER_TEMP/spec/bin/python" -m pip install --require-hashes \
+            -r .driver-lab/skills/spec-format/requirements.txt
+          echo "CHECKS_PYTHON=$RUNNER_TEMP/spec/bin/python" >> "$GITHUB_ENV"
 
-      - name: Root marker and board specs (spec_check.py --require-license)
-        run: scripts/checks.sh specs .driver-lab .hardware-specs-docs/specs
+      - name: Root marker, specs and verification records (spec.py check --require-license --require-verified)
+        run: scripts/checks.sh --mode "$CHECKS_MODE" check .driver-lab .hardware-specs-docs/specs
 
-      - name: Peripheral specs and board specs with [src] facts (anchor_check.py --root specs --require-license)
-        run: scripts/checks.sh anchors .driver-lab .hardware-specs-docs/specs
-        # Fetch the pinned repositories [src:] anchors cite (below a size limit) and resolve them.
+      - name: Source anchors at their pins (spec.py resolve)
+        run: scripts/checks.sh resolve .driver-lab .hardware-specs-docs/specs
+        # Fetch the pinned repositories the specs cite (below a size limit) and resolve them.
         env:
           RESOLVE_SRC: 1
+
+      - name: Markdown view and viewer (spec.py render --format md and html)
+        run: scripts/checks.sh render .driver-lab .hardware-specs-docs/specs
 
       # Proves the license gate with this repository's own root marker: fixture specs that do
       # not fit must fail with the gate's message, and those that fit must pass.
       - name: License-gate self-test
         run: scripts/checks.sh self-test .driver-lab .hardware-specs-docs/specs
-        # Also proves resolution: a real pinned repository is fetched; a good anchor must pass
-        # and a bad one fail.
+        # Also proves resolution: a real pinned repository is fetched; a good anchor must
+        # resolve and a bad one fail.
         env:
           RESOLVE_SRC: 1
