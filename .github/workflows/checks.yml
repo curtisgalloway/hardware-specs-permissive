@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: curtisgalloway/hardware-specs-docs
-          ref: main
+          ref: scratch/sf2-11-upstream-stale
           path: .hardware-specs-docs
           persist-credentials: false
 
