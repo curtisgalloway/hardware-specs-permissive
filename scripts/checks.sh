@@ -254,15 +254,19 @@ make_root() {
 # and verification is not what these runs test). Every expect ends in "|| return 1": the step
 # runs in a context where set -e does not stop at a failed function call.
 self_test() {
-  local board_fit="" gate lic kind symbol
+  local board_fit="" gate lic kind symbol physical_tmp
   # GitHub Actions sets CI=true: there the self-test must prove resolution, so a workflow
   # that forgets RESOLVE_SRC=1 on this step fails instead of skipping it silently.
   if [ "${CI:-}" = true ] && [ "${RESOLVE_SRC:-0}" != 1 ]; then
     echo "self-test FAILED: running in CI without RESOLVE_SRC=1, so resolution would go unproved"
     return 1
   fi
-  tmp=$(mktemp -d)
+  tmp=$(mktemp -d) || return 1
   trap 'rm -rf "$tmp"' EXIT
+  # BSD mktemp can return a path through /var, a symlink on macOS. The checker
+  # requires a physical root; resolve only the temporary directory we just made.
+  physical_tmp=$(cd "$tmp" && pwd -P) || return 1
+  tmp=$physical_tmp
   if [ -n "$BOARD_FIT" ]; then
     board_fit=$FIXTURES/board/$BOARD_FIT
   fi
