@@ -14,7 +14,11 @@ permissions:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     env:
       # The verification policy (driver-lab design D19): pull requests must re-verify every
       # fact, including one staled through a reference into another repository; main and manual
