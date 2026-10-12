@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: curtisgalloway/driver-lab
-          ref: 6e2b1b5a991b74aa390b63915f75f704b0938eb9
+          ref: e80309d57ee2787a7c00ec59567ae5dc7e813206
           path: .driver-lab
           persist-credentials: false
 
