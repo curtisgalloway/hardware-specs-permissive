@@ -47,6 +47,19 @@ sources:
   sha256: 7a05a16404e2e1099a456b398d1c9c4e148629b25a455bc22647dbcaeb80abda
   fetch: ok
   note: hash matches declared; section 4.3.4 page 4-89 read
+- name: rpi-docs
+  commit: 42deaefbc8b4edfe342b0d759ec16cda3be5e7d8
+  url: https://github.com/raspberrypi/documentation/tree/42deaefbc8b4edfe342b0d759ec16cda3be5e7d8
+  fetch: ok
+  note: Reused cached input; identity checked. Cached checkout; HEAD equals the pin. Read for contrary
+    evidence on the stub load address only.
+- name: cortex-a72-trm
+  sha256: 47f52c93806507962c2cd0b77991d7aebacfaae5734ac617fc45a5babdff738f
+  url: https://developer.arm.com/documentation/100095/latest
+  fetch: ok
+  note: Reused cached input; identity checked. Declared in the docs root's bcm2711 spec, not cited
+    by these facts; hash matches. Read section 4.3.67 (CPUECTLR_EL1) for contrary evidence on smpen-at-el3
+    only.
 summary:
   pass: 15
   fail: 0
@@ -57,223 +70,169 @@ verdicts:
   generic-timer-frequency:
     basis: b4dcb97cd4491cb5c4302f34ec140b3a26a970ba5e6d3921db235268d3ac639c
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: '`OSC_FREQ` is 54000000 under `BCM2711`
-
-      (53-57), written to `CNTFRQ_EL0` (110-112); `CNTVOFF_EL2` is written from the zero register
-
-      (114-115). The `LOCAL_CONTROL` comment at 94-97 still says 19.2 MHz crystal; it is a stale
-
-      comment about the local timer source, not the value written to `CNTFRQ_EL0`.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/2 "Generic timer frequency"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'armstub8.S lines 53-57 define OSC_FREQ as 54000000 under BCM2711 (19200000 otherwise);
+      lines 110-112 load it and write CNTFRQ_EL0; lines 114-115 write the zero register to CNTVOFF_EL2.
+      The claim is scoped to the BCM2711 build and matches. Contrary search: whole file for other
+      CNTFRQ/CNTVOFF writes or conditionals (none); the LOCAL_CONTROL comment at lines 94-96 still
+      mentions a 19.2 MHz crystal, a stale comment about the local timer source, not a different CNTFRQ
+      value. The claim says only what the code writes, not the actual oscillator rate.'
+    contrary_evidence: none-found
+    citation_precision: exact
   scr-el3-bits:
     basis: c8c6c206a8c9c7149d401fd320e314df07a93b62866d9d6ffa4dbb9c8947dd52
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: '`SCR_VAL` is RW(10), HCE(8), SMD(7), bits 5 and 4, NS(0)
-
-      (59-66), written to `SCR_EL3` at 121-123. DDI 0487 M.d §D24.2.168: RW on p. D24-9638 (next
-
-      lower level AArch64), HCE and SMD on pp. D24-9639–D24-9640 (HVC enabled; SMC UNDEFINED, with
-
-      the note that an `HCR_EL2.TSC` trap of EL1 SMC takes priority), NS on p. D24-9641; bits 5:4
-      are
-
-      RES1 on p. D24-9640. The stated consequences match.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/3 "SCR_EL3 bits"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Source lines 59-66 define SCR_VAL as RW (bit 10), HCE (8), SMD (7), bits 5 and 4, NS (0);
+      lines 121-123 move it to x0 and write SCR_EL3. Arm ARM M.d D24.2.168 (starts D24-9615): RW on
+      D24-9638 (1 = next lower level AArch64; with EL2 enabled, EL2 is AArch64); HCE on D24-9639 (1
+      = HVC enabled at EL3, EL2, EL1); SMD on D24-9639/9640 (1 = SMC UNDEFINED at EL1 and above; note
+      on D24-9640 that an HCR_EL2.TSC trap of EL1 SMC to EL2 has priority over this disable); bits
+      [5:4] RES1 on D24-9640; NS starts D24-9641, and for a PE without FEAT_RME (Cortex-A72) the "Otherwise"
+      table on D24-9642 gives 1 = levels below EL3 are Non-secure. All derived consequences in the
+      claim match. Contrary search: the other SCR_EL3 fields on D24-9636..9642 and the RW effective-value
+      conditions; none narrow the claim. Precision: the NS locator cites D24-9641 only, but the non-RME
+      NS meaning table is on D24-9642; widen to D24-9641-D24-9642.'
+    contrary_evidence: none-found
+    citation_precision: imprecise
   scr-el3-value:
     basis: 5186c44f2647509039c27923e8fbdfa1f73423a3709838fe29d6ff7518fd41d3
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: 'premises are the six bits of 59-66; 0x400 + 0x100 + 0x80
-
-      + 0x20 + 0x10 + 0x1 = 0x5B1 is correct; the TODO is present and the inference is not written
-      as
-
-      read.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/4 "SCR_EL3 value"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Premise #scr-el3-bits (PASS in this reading) gives bits 10, 8, 7, 5, 4, 0. 0x400+0x100+0x80+0x20+0x10+0x1
+      = 0x5B1, checked. The source writes SCR_VAL with a single mov immediate (line 122), and 0x5B1
+      fits a 16-bit move immediate, so no other value is formed. The TODO (read SCR_EL3 with a debugger
+      that can access EL3 state) can observe the value; it has not been performed and does not weaken
+      the arithmetic. Contrary search: no other SCR_EL3 write in the file.'
+    contrary_evidence: none-found
+    citation_precision: exact
   entry-exception-level-and-state:
     basis: bf4ec785541519b34b502a94919627ee20e83d476ac9c4e486b687bdf1a0eb5f
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: '`SPSR_EL3_VAL` is D, A, I, F plus mode
-
-      9 (EL2h, SP_EL2) (74-80), written to `spsr_el3` before the `eret` (143-148); `SCTLR_EL2` gets
-
-      0x30C50830 under a comment saying the set bits are RES1 and LE with WXN/I/SA/C/A/M off
-
-      (136-141); the primary path loads `kernel_entry32` and `dtb_ptr32` into w4 and w0, zeroes
-
-      x1–x3 and branches (163-171). booting.rst § 4 "Call the kernel image" asks for x0 = DTB
-
-      physical address and x1–x3 = 0, and DAIF masked.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/5 "Entry exception level and state"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Source lines 74-80: SPSR value sets D, A, I, F (bits 9-6) and mode 9, named EL2H; Arm ARM
+      M.d encodes M[3:0]=0b1001 as "EL2 with SP_EL2 (EL2h)" (seen in a D24.3 debug PSR table, page
+      D24-10220), so "using SP_EL2" holds. Lines 136-141 write 0x30C50830 to SCTLR_EL2 under a comment
+      that the set bits are RES1, little-endian, no WXN/I/SA/C/A/M; the claim''s paraphrase (MMU,
+      caches, alignment checks off) matches the comment (bit 25 EE and bit 0 M are clear in the value).
+      Lines 143-148 write SPSR_EL3, ELR_EL3 and eret. Lines 163-171: primary core loads kernel_entry32
+      to x4 and dtb_ptr32 to w0, zeroes x1-x3 and branches to x4. booting.rst section "4. Call the
+      kernel image" requires x0 = DTB physical address, x1-x3 = 0, DAIF masked, non-secure EL2 or
+      EL1, MMU off: the stub''s state matches (NS set in SCR_EL3 per scr-el3-bits). Contrary search:
+      whole of booting.rst section 4 (timers, coherency, system-register requirements are not part
+      of this claim) and the stub''s secondary path (not covered by the claim''s "primary core" sentence);
+      nothing contradicts. Precision: the heading locator omits the "4." in "4. Call the kernel image",
+      and "using SP_EL2" has no cited architecture support (add an Arm ARM locator for the SPSR_EL3
+      M[3:0] encoding, or say "the mode the source names EL2H").'
+    contrary_evidence: none-found
+    citation_precision: imprecise
     readers:
-    - verifier: Claude Code, claude-opus-5-5, reader bcm2711-sf2-10b-second
+    - verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session pg-r2
       verdict: PASS
-      date: '2026-10-09'
-      note: 'armstub8.S at rpi-tools 439b6198: lines 74-80 SPSR_EL3_VAL = D|A|I|F|EL2h (mode 9, SP_EL2);
-        136-141 SCTLR_EL2 = 0x30c50830 with the comment "All set bits below are res1. LE, no WXN/I/SA/C/A/M";
-        143-148 eret to in_el2; 163-171 primary loads w4 from kernel_entry32 and w0 from dtb_ptr32,
-        zeroes x1-x3 and branches. booting.rst "Call the kernel image" asks x0 = DTB address, x1-x3
-        = 0. Matches; the claim attributes the SCTLR bit meaning to the comment. License: BSD-3-Clause
-        notice at lines 1-27 of the same file matches the declared license. Contrary search: the whole
-        file for other exception returns or entry paths; secondaries take the same register setup
-        with x0 = 0; none found.'
+      date: '2026-10-14'
+      note: 'spec.py resolve: 32 anchors resolved, 0 skipped. armstub8.S at the pin: lines 74-80 define
+        the EL3 SPSR value as D, A, I, F set with mode 9 (EL2h, i.e. EL2 using SP_EL2); lines 136-141
+        load 0x30c50830 into SCTLR_EL2 with a comment saying all set bits are RES1 and LE with WXN/I/SA/C/A/M
+        clear (the claim''s paraphrase drops WXN, which is an omission not an error); I independently
+        decoded 0x30C50830 as bits 4,5,11,16,18,22,23,28,29, the SCTLR_EL2 RES1 set for the non-VHE
+        layout, consistent with the comment. Lines 143-148 write SPSR_EL3 and ELR_EL3 and eret. Lines
+        163-171: primary loads w4 from kernel_entry32 and w0 from dtb_ptr32, zeroes x1-x3, branches
+        to x4. booting.rst section "4. Call the kernel image", "Primary CPU general-purpose register
+        settings" (x0 = dtb physical address, x1-x3 = 0) matches; the same section also requires DAIF
+        masked, EL2 or EL1 non-secure, MMU off, which the stub state is consistent with. Contrary
+        search: Makefile build variants (-DGIC, -DHIGH_PERI, -DBCM2711) change only the GIC setup
+        call and peripheral addresses, not the SPSR/SCTLR/register hand-off; the secondary path also
+        zeroes x1-x3 but sets x0=0, and the claim is scoped to the primary core. The claim describes
+        what the stub source does (src class), not which binary the firmware runs; the overlay''s
+        stub-build-identity assumption is not declared on this fact, which is acceptable for a code-describing
+        claim. Citation: the standard locator heading "Call the kernel image" omits the "4. " that
+        is part of the rendered heading text at the pin (the docs root cites "4. Call the kernel image");
+        it identifies the section unambiguously, so graded imprecise rather than nonexistent. Suggest
+        changing it to "4. Call the kernel image" and adding a clause locator for the register-settings
+        paragraph.'
   smpen-at-el3:
     basis: 423a7a891e8532699e0abf547ac64c1462b68bd908af30bfe8a932697a0d9d72
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: '`CPUECTLR_EL1_SMPEN` is bit 6 (71-72), moved as the whole
-
-      value into `CPUECTLR_EL1` at 129-131, before the `eret` at 148.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/6 "SMPEN at EL3"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Source lines 71-72 define CPUECTLR_EL1 as S3_1_C15_C2_1 and SMPEN as bit 6; lines 129-131
+      move BIT(6) to x0 and write CPUECTLR_EL1, before the eret at line 148. So the written value
+      has only bit 6 set. Contrary search: Cortex-A72 TRM 4.3.67 confirms the encoding S3_1_c15_c2_1
+      and bit [6] SMPEN; its reset value 0x0000001B00000000 means this write also clears the reset-set
+      bits [36:32], which is consistent with "only bit 6 set". No other CPUECTLR write in the file.'
+    contrary_evidence: none-found
+    citation_precision: exact
   patch-words:
     basis: d739fa0d06519ceff24fc35e773397b4f216fa3e96f4044e0b78fbd8417bc4ba
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: '`stub_magic` 0x5AFE570B at 0xF0, `stub_version` at 0xF4,
-
-      `dtb_ptr32` at 0xF8, `kernel_entry32` at 0xFC, the last two assembled as zero (193-208) and
-      only
-
-      loaded (163-165); the comment at 190-192 says the firmware clears the eight bytes at 0xF0 after
-
-      reading, leaving the slot for core 3. The TF-A page, "TF-A port design", says the GPU firmware,
-
-      on finding a magic value in the stub, writes the kernel and DTB load addresses near the start
-
-      of memory, which supports the firmware sentence.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/7 "Patch words"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Source lines 187-208: .org 0xF0 stub_magic word 0x5AFE570B, 0xF4 stub_version word 0, 0xF8
+      dtb_ptr32 word 0, 0xFC kernel_entry32 word 0; lines 190-192 comment that the firmware clears
+      the next 8 bytes after reading the initial value, leaving the location usable as spin_cpu3 (label
+      at 0xF0). Lines 163-165 are the only references to dtb_ptr32 and kernel_entry32 (loads); the
+      file has no store to them. tfa-rpi4 "TF-A port design": if the GPU firmware finds a magic value
+      in the armstub image it puts the kernel and DTB load addresses in memory near the beginning
+      of memory. Matches the last sentence. The document does not give the magic value or offsets;
+      those rest on source, as the claim frames them. Contrary search: rest of rpi4.rst and rpi-docs
+      armstub/legacy boot sections; none.'
+    contrary_evidence: none-found
+    citation_precision: exact
   secondary-core-release-spin-table:
     basis: 904a1290c9c02f89f75db36bb721eaa8e2db9e75f833f7ffaf30ab0694e1ffde
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: 'MPIDR bits 1:0 select the path
-
-      (151-153); secondaries `wfe` and load the 64-bit word at `spin_cpu0` + 8 × core until
-
-      non-zero, then zero x0 and join `boot_kernel`, which zeroes x1–x3 and branches (155-161,
-
-      167-171); the slots are at 0xD8, 0xE0, 0xE8, 0xF0 (175-189), and core 0 never polls 0xD8. The
-
-      hardware-location sentence carries a document class: the TF-A page says the firmware loads a
-
-      stub file (`armstub8.bin` or `armstub=`) to the start of DRAM, address 0; the Makefile at the
-
-      pin also links the AArch64 stubs at 0. For the built-in stub this rests on the first bullet''s
-
-      build-identity step, which the overlay''s preamble already states.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: 'Quick-facts/8 "Secondary-core release: spin-table"'
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Source lines 151-153: MPIDR_EL1 bits 1:0, zero branches to primary_cpu; lines 155-161:
+      x5 = address of spin_cpu0, loop wfe then load the 64-bit word at x5 + index*8, repeat while
+      zero, then x0 = 0 and branch to boot_kernel; lines 167-171 zero x1-x3 and branch to the loaded
+      value; lines 175-189 place slots at 0xD8, 0xE0, 0xE8, 0xF0. tfa-rpi4 "TF-A port design" states
+      the firmware loads armstub8.bin (or the armstub= file) to the beginning of DRAM (address 0)
+      and runs it at EL3. Since adr is PC-relative, the offsets equal physical addresses only at that
+      load address; with SCTLR_EL2.M clear the accesses are untranslated. Scope note for the author:
+      the document''s load-address statement covers a stub loaded from the boot partition; no cited
+      document states the load address of the firmware''s built-in default stub, so the last sentence
+      for the default stub rests on the same build-identity reasoning as #which-build-ships. Consider
+      scoping it. Contrary search: rpi-docs config_txt armstub and legacy kernel_address/kernel_old
+      (kernel_old loads a kernel at 0x0, unrelated to the stub); none.'
+    contrary_evidence: none-found
+    citation_precision: exact
   gic-programming-at-el3:
     basis: 7d12a0c4669936aadd890d5b3c06d5995f3ecc14dd728a2c55018730dfd8f132
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: 'the register offsets and `IT_NR` = 8 (85-89);
-
-      `setup_gic` is called before the `eret` under `GIC` (133-135); in `setup_gic` (214-235) a core
-
-      with non-zero MPIDR bits 1:0 writes 3 to `GICD_CTLR`, core 0 branches past it under a "primary
-
-      core" comment, and every core writes 0x1E7 to `GICC_CTLR`, 0xFF to `GICC_PMR`, and all-ones
-      to
-
-      eight words from `GICD_IGROUPR` downward (IDs 0–255). Non-`HIGH_PERI` `GIC_DISTB`/`GIC_CPUB`
-      are
-
-      0xFF84_1000/0xFF84_2000 (45-51). "Every core" is supported by the source: secondaries reach
-      the
-
-      spin loop only after the `eret`, which follows `setup_gic`.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Quick-facts/9 "GIC programming at EL3"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'Source lines 133-135: setup_gic called under GIC before the eret, so at EL3 on every core
+      that runs the stub. Lines 214-235: reads MPIDR, GIC_DISTB into x2, tests bits 1:0, equal (core
+      0, commented "primary core") branches past the write of 3 to GICD_CTRLR (offset 0); then CPU
+      interface base = DISTB + (CPUB - DISTB), writes 0x1E7 at GICC_CTRLR (0x0) and 0xFF at GICC_PMR
+      (0x4); then from DISTB + 0x80 writes all-ones at offsets 28 down to 0 (IT_NR=8, loop stores
+      before the exit test, so 8 words), i.e. GICD_IGROUPR0-7, IDs 0-255. Lines 45-51: without HIGH_PERI,
+      GIC_DISTB 0xFF841000 and GIC_CPUB 0xFF842000; the claim''s bases are those of the non-HIGH_PERI
+      build that the orientation scopes the overlay to. Offsets agree with GICv2 register map (GICD_IGROUPRn
+      at 0x080 + 4n, 4.3.4 p. 4-90). Contrary search: whole file for other GIC writes; none.'
+    contrary_evidence: none-found
+    citation_precision: exact
   the-group-settings-the-stub-wrote-are-secure-state:
     basis: 2611b50ae2b0c9b0327954129a20d64f32cefb1f62989c49181ce2ea35d07fb8
     verdict: PASS
-    date: '2026-10-08'
-    verifier: Claude Opus 5.5, Claude Code subagent (delta of 6edd40f against the cca4556 record,
-      which was itself a delta verification of cca4556 against the 7661ab8 record; second reader run
-      separately)
-    note: 'the retitled lead-in
-
-      now claims only the group settings, which resolves the earlier FAIL (the stub''s `GICC_PMR`
-
-      write is no longer in scope). IHI 0048B §4.3.4 (p. 4-89): with the Security Extensions the
-
-      group registers are Secure-only and RAZ/WI to Non-secure accesses; GIC-400 TRM §1.1 (p. 1-2)
-
-      lists the GIC Security Extensions among its features, and TRM §3.2.1 (p. 3-3) says the same
-
-      of `GICD_IGROUPRn`.'
-    carried_from:
-      repo: hardware-specs-permissive
-      commit: 249412ebf790b62da37a6134b98aaf0cb487fb96
-      path: specs/resources/bcm2711.verify.md
-      key: Gotchas/2 "The group settings the stub wrote are secure state"
-      format: 1
+    date: '2026-10-14'
+    verifier: Claude Code subagent, claude-opus-5-5, Claude Code, session perm-p1
+    note: 'GICv2 spec 4.3.4 p. 4-89 (GICD_IGROUPRn usage constraints): with the GIC Security Extensions
+      the registers are Secure-access only and RAZ/WI to Non-secure accesses. GIC-400 TRM 1.1 p. 1-2:
+      the GIC-400 implements the GIC Security Extensions. Together they give the claim. Condition:
+      "a non-secure kernel cannot read back" assumes the kernel''s accesses reach the GIC marked Non-secure;
+      this overlay declares the converse attribute question as assumption interconnect-presents-secure-attribute-to-the-gic
+      but this fact does not reference it (a Secure EL1 could also make Secure accesses; with the
+      stock stub none runs, so "at EL3 or from a debugger" is the practical set). Contrary search:
+      rest of 4.3.4 and p. 4-90 (reset value; IMPLEMENTATION DEFINED reset-to-1 mechanism for Non-secure
+      processors, which affects reset values, not read access); none.'
+    contrary_evidence: none-found
+    citation_precision: exact
   which-build-ships:
     basis: 52af57fe78d820c9edd63f28997f0ca46c1fbf9785e19da576ca656a05e0b216
     verdict: PASS
